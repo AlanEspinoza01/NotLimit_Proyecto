@@ -1,0 +1,232 @@
+/* ==========================================================================
+   REGISTER SALE VIEW — MOBILE-FIRST RESPONSIVE STYLESHEET
+   Diseñado bajo enfoque Mobile-First progresivo cubriendo todas las
+   dimensiones de smartphones, tablets y monitores de escritorio.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. BASE MOBILE-FIRST (320x568 — iPhone SE 1st Gen y dispositivos compactos)
+   -------------------------------------------------------------------------- */
+.rs-view-root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  padding-bottom: 4rem;
+}
+
+.rs-header-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+}
+
+.rs-step1-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.rs-shipping-tiers-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.rs-thumbnails-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.rs-preview-sticky {
+  position: static;
+}
+
+.rs-final-summary-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.rs-final-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.rs-final-actions > button {
+  width: 100%;
+  justify-content: center;
+}
+
+.rs-modal-overlay {
+  padding: 0.5rem;
+  padding-bottom: 3rem;
+}
+
+.rs-modal-window {
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(100vh - 3.5rem);
+  overflow-y: auto;
+}
+
+/* --------------------------------------------------------------------------
+   2. MEDIA QUERY: 360px+ (360x640, 360x780, 360x800 — Android estándar)
+   -------------------------------------------------------------------------- */
+@media (min-width: 360px) {
+  .rs-shipping-tiers-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .rs-thumbnails-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3. MEDIA QUERY: 375px+ (375x667, 375x812 — iPhone SE / X / 12 Mini)
+   -------------------------------------------------------------------------- */
+@media (min-width: 375px) {
+  .rs-modal-overlay {
+    padding: 0.75rem;
+    padding-bottom: 3.25rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   4. MEDIA QUERY: 390px+ (390x844, 393x852 — iPhone 13 / 14 / 15)
+   -------------------------------------------------------------------------- */
+@media (min-width: 390px) {
+  .rs-thumbnails-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. MEDIA QUERY: 412px+ (412x915 — Galaxy S22 / Pixel 7)
+   -------------------------------------------------------------------------- */
+@media (min-width: 412px) {
+  .rs-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   6. MEDIA QUERY: 430px+ (430x932 — iPhone 14 / 15 Pro Max)
+   -------------------------------------------------------------------------- */
+@media (min-width: 430px) {
+  .rs-header-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .rs-final-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    width: auto;
+  }
+
+  .rs-final-actions > button {
+    width: auto;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   7. MEDIA QUERY: 768px+ (768x1024, 800x1280, 820x1180 — Tablets Portrait)
+   -------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+  .rs-final-summary-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .rs-modal-overlay {
+    padding: 1rem;
+    padding-bottom: 3.5rem;
+  }
+
+  .rs-modal-window {
+    max-width: 42rem;
+    max-height: calc(100vh - 4.5rem);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   8. MEDIA QUERY CRÍTICO TABLETS: 768px a 1024px (768x1024, 800x1280, 820x1180, 1024x1366)
+      Evita superposición de columna sticky y garantiza espacio para barra retro OS
+   -------------------------------------------------------------------------- */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .rs-step1-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .rs-preview-sticky {
+    position: static !important;
+    top: auto !important;
+  }
+
+  .rs-modal-window {
+    max-height: calc(100vh - 5rem);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   9. MEDIA QUERY: 1025px+ (Tablets Landscape grandes y transición a Laptop)
+   -------------------------------------------------------------------------- */
+@media (min-width: 1025px) {
+  .rs-step1-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+
+  .rs-step1-col-left {
+    grid-column: span 7 / span 7;
+  }
+
+  .rs-step1-col-right {
+    grid-column: span 5 / span 5;
+  }
+
+  .rs-preview-sticky {
+    position: sticky;
+    top: 1rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   10. MEDIA QUERY: 1280px+ (1280x720, 1366x768 — Laptops Estándar)
+   -------------------------------------------------------------------------- */
+@media (min-width: 1280px) {
+  .rs-step1-grid {
+    gap: 1.25rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   11. MEDIA QUERY: 1440px+ (1440x900 — Monitores WXGA+ / MacBook Pro)
+   -------------------------------------------------------------------------- */
+@media (min-width: 1440px) {
+  .rs-modal-window {
+    max-width: 44rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   12. MEDIA QUERY: 1920px+ (1920x1080 — Monitores Full HD Desktop)
+   -------------------------------------------------------------------------- */
+@media (min-width: 1920px) {
+  .rs-modal-window {
+    max-width: 46rem;
+  }
+}

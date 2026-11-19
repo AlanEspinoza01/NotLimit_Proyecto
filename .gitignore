@@ -1,0 +1,17 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+.vercel
+
+# Archivos locales de Postman
+/.postman/resources.yaml
+/postman/globals/workspace.globals.yaml
+
+# Archivos auxiliares del proyecto
+/files_list.txt
+/scan_project.cjs

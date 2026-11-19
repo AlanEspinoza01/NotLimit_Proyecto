@@ -1,0 +1,222 @@
+/* ==========================================================================
+   CART VIEW - HOJA DE ESTILOS RESPONSIVA (ENFOQUE 100% MOBILE-FIRST)
+   Soporte exacto para la matriz oficial de viewports Móviles, Tablets y Desktop
+   ========================================================================== */
+
+/* Base Mobile-First (Por defecto desde 0px / 320px) */
+.nl-cart-view-wrapper {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.nl-cart-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.875rem;
+}
+
+.nl-cart-item-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.nl-cart-item-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  width: 100%;
+}
+
+.nl-cart-couriers-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.nl-cart-branches-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.375rem;
+}
+
+.nl-cart-modal-window {
+  width: 96vw;
+  max-width: 96vw;
+  max-height: 90vh;
+}
+
+/* ==========================================================================
+   1. DISPOSITIVOS MÓVILES: 320 x 568 px
+   ========================================================================== */
+@media screen and (min-width: 320px) {
+  .nl-cart-layout-grid {
+    gap: 0.75rem;
+  }
+
+  .nl-cart-item-row {
+    padding: 0.5rem;
+  }
+
+  .nl-cart-modal-window {
+    width: 96vw;
+    max-height: 88vh;
+  }
+}
+
+/* ==========================================================================
+   2. DISPOSITIVOS MÓVILES: 360 x 640 px a 360 x 800 px
+   ========================================================================== */
+@media screen and (min-width: 360px) {
+  .nl-cart-item-row {
+    padding: 0.625rem;
+  }
+
+  .nl-cart-item-controls {
+    width: auto;
+  }
+}
+
+/* ==========================================================================
+   3. DISPOSITIVOS MÓVILES: 375 x 667 px a 375 x 812 px
+   ========================================================================== */
+@media screen and (min-width: 375px) {
+  .nl-cart-layout-grid {
+    gap: 0.875rem;
+  }
+}
+
+/* ==========================================================================
+   4. DISPOSITIVOS MÓVILES: 390 x 844 px / 393 x 852 px
+   ========================================================================== */
+@media screen and (min-width: 390px) {
+  .nl-cart-layout-grid {
+    gap: 1rem;
+  }
+}
+
+/* ==========================================================================
+   5. DISPOSITIVOS MÓVILES: 412 x 915 px
+   ========================================================================== */
+@media screen and (min-width: 412px) {
+  .nl-cart-branches-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   6. DISPOSITIVOS MÓVILES: 430 x 932 px
+   ========================================================================== */
+@media screen and (min-width: 430px) {
+  .nl-cart-modal-window {
+    width: 94vw;
+  }
+}
+
+/* ==========================================================================
+   7. TABLETS (PORTRAIT Y LANDSCAPE) - RANGO CRÍTICO: 768 x 1024 px
+   Evita que los elementos rígidos del sistema operativo retro (modales,
+   grillas de couriers, formularios o barras de tareas) se superpongan o rompan el layout.
+   ========================================================================== */
+@media screen and (min-width: 768px) {
+  .nl-cart-layout-grid {
+    grid-template-columns: 1fr;
+    gap: 1.125rem;
+  }
+
+  .nl-cart-couriers-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .nl-cart-branches-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .nl-cart-modal-window {
+    width: 90vw;
+    max-width: 44rem;
+    max-height: 85vh;
+  }
+}
+
+/* ==========================================================================
+   8. TABLETS (PORTRAIT Y LANDSCAPE): 800 x 1280 px
+   ========================================================================== */
+@media screen and (min-width: 800px) {
+  .nl-cart-layout-grid {
+    gap: 1.25rem;
+  }
+
+  .nl-cart-modal-window {
+    max-width: 46rem;
+  }
+}
+
+/* ==========================================================================
+   9. TABLETS (PORTRAIT Y LANDSCAPE): 820 x 1180 px
+   ========================================================================== */
+@media screen and (min-width: 820px) {
+  .nl-cart-modal-window {
+    max-width: 48rem;
+  }
+}
+
+/* ==========================================================================
+   10. TABLETS LANDSCAPE / IPAD PRO: 1024 x 1366 px
+   Activación de distribución de 12 columnas (7 izq / 5 der) controlada
+   ========================================================================== */
+@media screen and (min-width: 1024px) {
+  .nl-cart-layout-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+
+  .nl-cart-left-col {
+    grid-column: span 7 / span 7;
+    min-width: 0;
+  }
+
+  .nl-cart-right-col {
+    grid-column: span 5 / span 5;
+    min-width: 0;
+  }
+}
+
+/* ==========================================================================
+   11. LAPTOPS Y MONITORES DESKTOP: 1280 x 720 px / 1366 x 768 px
+   ========================================================================== */
+@media screen and (min-width: 1280px) {
+  .nl-cart-view-wrapper {
+    max-width: 72rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .nl-cart-layout-grid {
+    gap: 1.375rem;
+  }
+}
+
+/* ==========================================================================
+   12. LAPTOPS Y MONITORES DESKTOP: 1440 x 900 px
+   ========================================================================== */
+@media screen and (min-width: 1440px) {
+  .nl-cart-layout-grid {
+    gap: 1.5rem;
+  }
+}
+
+/* ==========================================================================
+   13. MONITORES DESKTOP FULL HD: 1920 x 1080 px
+   ========================================================================== */
+@media screen and (min-width: 1920px) {
+  .nl-cart-view-wrapper {
+    max-width: 76rem;
+  }
+}

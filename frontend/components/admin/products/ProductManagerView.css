@@ -1,0 +1,322 @@
+/* ============================================================================
+ * ProductManagerView.css
+ * Arquitectura 100% Responsiva Mobile-First para el Administrador de Productos
+ * Soporta la matriz obligatoria de viewports móviles, tablets (rango crítico
+ * 768px-1024px anti-colisión retro OS) y monitores desktop.
+ * ============================================================================ */
+
+/* Base Mobile-First (320px y superior) */
+.nl-product-manager-root {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-bottom: 4.5rem;
+}
+
+.nl-product-manager-main-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+
+.nl-product-manager-col-left,
+.nl-product-manager-col-right {
+  min-width: 0;
+  width: 100%;
+}
+
+.nl-product-manager-preview-sticky {
+  position: static;
+}
+
+.nl-product-manager-shipping-tiers-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.nl-product-manager-thumbnails-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.nl-product-manager-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 1: Dispositivos Móviles Pequeños (320 x 568 px)
+ * ============================================================================ */
+@media screen and (min-width: 320px) and (max-width: 359px) {
+  .nl-product-manager-root {
+    padding-bottom: 5rem;
+  }
+
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 2: Dispositivos Móviles Estándar (360 x 640 px a 360 x 800 px)
+ * ============================================================================ */
+@media screen and (min-width: 360px) and (max-width: 374px) {
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 3: Dispositivos Móviles Medianos (375 x 667 px a 375 x 812 px)
+ * ============================================================================ */
+@media screen and (min-width: 375px) and (max-width: 389px) {
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 4: Dispositivos Móviles Modernos (390 x 844 px / 393 x 852 px)
+ * ============================================================================ */
+@media screen and (min-width: 390px) and (max-width: 411px) {
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 5: Dispositivos Móviles Grandes (412 x 915 px)
+ * ============================================================================ */
+@media screen and (min-width: 412px) and (max-width: 429px) {
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 6: Dispositivos Móviles Pro Max / Plus (430 x 932 px a 767 px)
+ * ============================================================================ */
+@media screen and (min-width: 430px) and (max-width: 767px) {
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 7 (RANGO CRÍTICO TABLET): Tablets Portrait (768 x 1024 px)
+ * Evita colisión de vista previa y tabla con la barra de tareas retro XP
+ * ============================================================================ */
+@media screen and (min-width: 768px) and (max-width: 799px) {
+  .nl-product-manager-root {
+    padding-bottom: 5.25rem;
+  }
+
+  .nl-product-manager-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 8 (RANGO CRÍTICO TABLET): Tablets 800 x 1280 px
+ * ============================================================================ */
+@media screen and (min-width: 800px) and (max-width: 819px) {
+  .nl-product-manager-root {
+    padding-bottom: 5.25rem;
+  }
+
+  .nl-product-manager-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 9 (RANGO CRÍTICO TABLET): Tablets iPad Air / 820 x 1180 px
+ * ============================================================================ */
+@media screen and (min-width: 820px) and (max-width: 1023px) {
+  .nl-product-manager-root {
+    padding-bottom: 5.25rem;
+  }
+
+  .nl-product-manager-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 10 (RANGO CRÍTICO TABLET): Tablets Landscape & iPad Pro (1024 x 1366 px)
+ * ============================================================================ */
+@media screen and (min-width: 1024px) and (max-width: 1279px) {
+  .nl-product-manager-root {
+    padding-bottom: 4.5rem;
+  }
+
+  .nl-product-manager-main-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .nl-product-manager-col-left {
+    grid-column: span 7 / span 7;
+  }
+
+  .nl-product-manager-col-right {
+    grid-column: span 5 / span 5;
+  }
+
+  .nl-product-manager-preview-sticky {
+    position: sticky;
+    top: 1rem;
+  }
+
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 11: Laptops Estándar (1280 x 720 px / 1366 x 768 px)
+ * ============================================================================ */
+@media screen and (min-width: 1280px) and (max-width: 1439px) {
+  .nl-product-manager-main-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .nl-product-manager-col-left {
+    grid-column: span 7 / span 7;
+  }
+
+  .nl-product-manager-col-right {
+    grid-column: span 5 / span 5;
+  }
+
+  .nl-product-manager-preview-sticky {
+    position: sticky;
+    top: 1rem;
+  }
+
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 12: Laptops & Monitores WXGA+ (1440 x 900 px)
+ * ============================================================================ */
+@media screen and (min-width: 1440px) and (max-width: 1919px) {
+  .nl-product-manager-main-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .nl-product-manager-col-left {
+    grid-column: span 7 / span 7;
+  }
+
+  .nl-product-manager-col-right {
+    grid-column: span 5 / span 5;
+  }
+
+  .nl-product-manager-preview-sticky {
+    position: sticky;
+    top: 1rem;
+  }
+
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ============================================================================
+ * BLOQUE MEDIA QUERY 13: Monitores Desktop Full HD y Superiores (1920 x 1080 px+)
+ * ============================================================================ */
+@media screen and (min-width: 1920px) {
+  .nl-product-manager-main-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .nl-product-manager-col-left {
+    grid-column: span 7 / span 7;
+  }
+
+  .nl-product-manager-col-right {
+    grid-column: span 5 / span 5;
+  }
+
+  .nl-product-manager-preview-sticky {
+    position: sticky;
+    top: 1rem;
+  }
+
+  .nl-product-manager-shipping-tiers-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .nl-product-manager-thumbnails-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}

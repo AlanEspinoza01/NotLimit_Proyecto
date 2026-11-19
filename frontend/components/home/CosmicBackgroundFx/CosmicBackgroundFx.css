@@ -1,0 +1,11 @@
+/* ==========================================================================
+   CosmicBackgroundFx.css -> Old Tech Nostalgia Desktop Styling
+   ========================================================================== */
+
+.old-tech-desk-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  width: 100%;
+}

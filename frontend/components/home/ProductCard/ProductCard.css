@@ -1,0 +1,136 @@
+/* ==========================================================================
+   ProductCard.css
+   Tarjeta de producto estilo Windows XP con fondo blanco puro y biselado
+   ========================================================================== */
+
+.product-card-xp {
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.15s ease;
+  overflow: hidden;
+  width: 370px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.product-card-xp:hover {
+  border-color: #0055ea;
+  box-shadow: 0 0 6px rgba(0, 85, 234, 0.35);
+  transform: translateY(-1px);
+}
+
+.product-card-xp-media {
+  position: relative;
+  width: 370px;
+  height: 506px;
+  max-width: 100%;
+  aspect-ratio: 370 / 506;
+  background-color: #f0f2f5;
+  border-bottom: 1px solid #e0e0e0;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+.product-card-xp-img-blur {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: blur(18px) brightness(0.95) saturate(1.1);
+  transform: scale(1.12);
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.product-card-xp-img {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  transition: transform 0.25s ease;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
+}
+
+.product-card-xp:hover .product-card-xp-img {
+  transform: scale(1.02);
+}
+
+.product-card-xp-discount {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: #15803d; /* Verde pradera intenso */
+  color: #ffffff;
+  font-family: 'Tahoma', sans-serif;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 6px;
+  border-radius: 2px;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
+  border: 1px solid #166534;
+}
+
+.product-card-xp-stock {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0c3866;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border: 1px solid #7f9db9;
+  border-radius: 2px;
+}
+
+.product-card-xp-info {
+  padding: 10px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.product-card-xp-category {
+  font-size: 10px;
+  font-weight: 700;
+  color: #0055ea;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.product-card-xp-title {
+  font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.product-card-xp-price {
+  font-family: 'Tahoma', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: #b71c1c;
+}
+
+.product-card-xp-oldprice {
+  font-size: 11px;
+  color: #888888;
+  text-decoration: line-through;
+  margin-left: 6px;
+  font-weight: normal;
+}

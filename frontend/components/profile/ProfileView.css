@@ -1,0 +1,198 @@
+/* ==========================================================================
+   ProfileView.css - Diseño 100% Responsivo Mobile-First
+   Matriz de Viewports Oficial:
+   - Móviles: 320x568, 360x640-800, 375x667-812, 390x844/393x852, 412x915, 430x932
+   - Tablets: 768x1024, 800x1280, 820x1180, 1024x1366 (Rango crítico 768px - 1024px)
+   - Laptops y Monitores Desktop: 1280x720 / 1366x768, 1440x900, 1920x1080
+   ========================================================================== */
+
+/* Base Mobile-First (320px x 568px) */
+.profile-view-root {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.profile-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.profile-main-pane {
+  padding: 0.625rem;
+  min-height: 360px;
+  overflow-x: hidden;
+}
+
+.profile-modal-backdrop {
+  padding: 0.5rem;
+  padding-bottom: max(0.75rem, 40px);
+}
+
+.profile-modal-window {
+  width: 100%;
+  max-height: calc(100vh - 52px);
+  overflow-y: auto;
+}
+
+/* ==========================================================================
+   BLOQUE 1: DISPOSITIVOS MÓVILES
+   ========================================================================== */
+
+/* Inicio Media Query: Móvil Compacto (320 x 568 px) */
+@media screen and (min-width: 320px) {
+  .profile-main-pane {
+    padding: 0.625rem;
+  }
+}
+
+/* Inicio Media Query: Móvil Estándar (360 x 640 px a 360 x 800 px) */
+@media screen and (min-width: 360px) {
+  .profile-main-pane {
+    padding: 0.75rem;
+  }
+
+  .profile-layout-grid {
+    gap: 0.875rem;
+  }
+}
+
+/* Inicio Media Query: Móvil Intermedio (375 x 667 px a 375 x 812 px) */
+@media screen and (min-width: 375px) {
+  .profile-main-pane {
+    padding: 0.85rem;
+  }
+}
+
+/* Inicio Media Query: Móvil Moderno (390 x 844 px / 393 x 852 px) */
+@media screen and (min-width: 390px) {
+  .profile-main-pane {
+    padding: 0.9rem;
+  }
+}
+
+@media screen and (min-width: 393px) {
+  .profile-layout-grid {
+    gap: 1rem;
+  }
+}
+
+/* Inicio Media Query: Móvil Grande (412 x 915 px) */
+@media screen and (min-width: 412px) {
+  .profile-main-pane {
+    padding: 0.95rem;
+  }
+}
+
+/* Inicio Media Query: Móvil Max / Plus (430 x 932 px) */
+@media screen and (min-width: 430px) {
+  .profile-main-pane {
+    padding: 1rem;
+  }
+}
+
+/* ==========================================================================
+   BLOQUE 2: TABLETS (PORTRAIT Y LANDSCAPE) - RANGO CRÍTICO 768px A 1024px
+   Evita superposición de tarjetas laterales, paneles y ventanas modales retro
+   ========================================================================== */
+
+/* Inicio Media Query: Rango Crítico de Tablets (768px a 1024px) */
+@media screen and (min-width: 768px) and (max-width: 1024px) {
+  .profile-layout-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 0.875rem;
+  }
+
+  .profile-sidebar-col {
+    grid-column: span 4 / span 4;
+    min-width: 0;
+  }
+
+  .profile-main-pane {
+    grid-column: span 8 / span 8;
+    min-width: 0;
+    padding: 0.875rem;
+  }
+
+  .profile-modal-window {
+    max-height: calc(100vh - 60px);
+  }
+}
+
+/* Inicio Media Query: Tablet Portrait Estándar (768 x 1024 px) */
+@media screen and (min-width: 768px) {
+  .profile-layout-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .profile-sidebar-col {
+    grid-column: span 4 / span 4;
+  }
+
+  .profile-main-pane {
+    grid-column: span 8 / span 8;
+    min-height: 420px;
+  }
+}
+
+/* Inicio Media Query: Tablet Android / WXGA (800 x 1280 px) */
+@media screen and (min-width: 800px) {
+  .profile-main-pane {
+    padding: 0.95rem;
+  }
+}
+
+/* Inicio Media Query: Tablet Air / iPad (820 x 1180 px) */
+@media screen and (min-width: 820px) {
+  .profile-layout-grid {
+    gap: 1.1rem;
+  }
+}
+
+/* Inicio Media Query: Tablet Pro / Landscape (1024 x 1366 px) */
+@media screen and (min-width: 1024px) {
+  .profile-layout-grid {
+    gap: 1.25rem;
+  }
+
+  .profile-main-pane {
+    padding: 1rem;
+  }
+}
+
+/* ==========================================================================
+   BLOQUE 3: LAPTOPS Y MONITORES DESKTOP
+   ========================================================================== */
+
+/* Inicio Media Query: Laptop HD / WXGA (1280 x 720 px / 1366 x 768 px) */
+@media screen and (min-width: 1280px) {
+  .profile-layout-grid {
+    gap: 1.25rem;
+  }
+
+  .profile-main-pane {
+    padding: 1rem;
+  }
+}
+
+@media screen and (min-width: 1366px) {
+  .profile-main-pane {
+    padding: 1.1rem;
+  }
+}
+
+/* Inicio Media Query: Monitor WXGA+ (1440 x 900 px) */
+@media screen and (min-width: 1440px) {
+  .profile-layout-grid {
+    gap: 1.35rem;
+  }
+}
+
+/* Inicio Media Query: Monitor Full HD Desktop (1920 x 1080 px) */
+@media screen and (min-width: 1920px) {
+  .profile-layout-grid {
+    gap: 1.5rem;
+  }
+}

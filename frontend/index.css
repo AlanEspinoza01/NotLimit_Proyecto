@@ -1,0 +1,80 @@
+@import "tailwindcss";
+@import "./styles/windows-xp.css";
+@import "./styles/responsive-matrix.css";
+
+@layer base {
+  * {
+    border-color: #d0ccc0;
+  }
+  body {
+    background-color: #4b8cf5;
+    color: #000000;
+    font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
+  }
+}
+
+/* ==========================================================================
+   Compatibilidad Retro con Clases de Utilidad
+   ========================================================================== */
+.bevel-raised {
+  box-shadow: inset 1.5px 1.5px 0px #ffffff,
+              inset -1.5px -1.5px 0px #707070,
+              inset 2.5px 2.5px 0px #ffffff,
+              inset -2.5px -2.5px 0px #000000;
+}
+
+.bevel-sunken {
+  box-shadow: inset 1.5px 1.5px 0px #707070,
+              inset -1.5px -1.5px 0px #ffffff,
+              inset 2.5px 2.5px 0px #000000,
+              inset -2.5px -2.5px 0px #ffffff;
+  background-color: #ffffff;
+}
+
+.bevel-chrome {
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #707070;
+  border-bottom: 2px solid #707070;
+}
+
+.os-titlebar-lavender,
+.os-titlebar-active {
+  background: linear-gradient(180deg, #0058ee 0%, #3593ff 8%, #288eff 38%, #0055ea 85%, #0045d6 92%, #0030a6 100%);
+  color: #ffffff;
+  text-shadow: 1px 1px 1px #001f66;
+}
+
+.os-titlebar-chrome {
+  background: linear-gradient(90deg, #000080 0%, #1084d0 100%);
+  color: #ffffff;
+}
+
+.win-btn {
+  width: 21px;
+  height: 21px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #448aff 0%, #2979ff 45%, #0050d0 50%, #003db3 100%);
+  color: #ffffff;
+  border: 1px solid #ffffff;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+}
+
+.win-btn-close {
+  background: linear-gradient(180deg, #ff7043 0%, #f4511e 45%, #d84315 50%, #bf360c 100%);
+  color: #ffffff;
+}
+
+.text-y2k-gradient {
+  color: #003c74;
+}
+
+.image-pixelated {
+  image-rendering: pixelated;
+}

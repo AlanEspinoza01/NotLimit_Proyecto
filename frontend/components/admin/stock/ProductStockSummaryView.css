@@ -1,0 +1,190 @@
+/* ==========================================================================
+   PRODUCT STOCK SUMMARY VIEW - MOBILE-FIRST RESPONSIVE STYLESHEET
+   Matriz de soporte exacto de viewports (Píxeles CSS):
+   - Móviles: 320x568, 360x640-800, 375x667-812, 390x844/393x852, 412x915, 430x932
+   - Tablets: 768x1024, 800x1280, 820x1180, 1024x1366
+   - Laptops y Desktop: 1280x720/1366x768, 1440x900, 1920x1080
+   ========================================================================== */
+
+/* --- BASE MOBILE-FIRST (Default < 320px y base estructural) --- */
+.nl-stock-summary-root {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.nl-stock-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.nl-stock-taxonomy-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.nl-stock-search-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.nl-stock-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.nl-stock-modal-sizes-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.nl-stock-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nl-stock-modal-window {
+  width: 100%;
+  max-height: calc(100vh - 76px);
+  overflow-y: auto;
+}
+
+/* ==========================================================================
+   BLOQUE DE MEDIA QUERIES: DISPOSITIVOS MÓVILES
+   ========================================================================== */
+
+/* [MEDIA QUERY] Dispositivos Móviles Pequeños: 320 x 568 px */
+@media screen and (min-width: 320px) {
+  .nl-stock-modal-sizes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* [MEDIA QUERY] Dispositivos Móviles Estándar: 360 x 640 px a 360 x 800 px */
+@media screen and (min-width: 360px) {
+  .nl-stock-kpi-grid {
+    gap: 0.625rem;
+  }
+}
+
+/* [MEDIA QUERY] Dispositivos Móviles Intermedios: 375 x 667 px a 375 x 812 px */
+@media screen and (min-width: 375px) {
+  .nl-stock-taxonomy-grid,
+  .nl-stock-search-grid {
+    gap: 0.625rem;
+  }
+}
+
+/* [MEDIA QUERY] Dispositivos Móviles Modernos: 390 x 844 px / 393 x 852 px */
+@media screen and (min-width: 390px) {
+  .nl-stock-cards-grid {
+    gap: 0.75rem;
+  }
+}
+
+/* [MEDIA QUERY] Dispositivos Móviles Grandes: 412 x 915 px */
+@media screen and (min-width: 412px) {
+  .nl-stock-modal-sizes-grid {
+    gap: 0.625rem;
+  }
+}
+
+/* [MEDIA QUERY] Dispositivos Móviles Max / Plus: 430 x 932 px */
+@media screen and (min-width: 430px) {
+  .nl-stock-taxonomy-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   BLOQUE DE MEDIA QUERIES: TABLETS (RANGO CRÍTICO 768px - 1024px)
+   Prevención de superposición con barra de tareas retro y ventanas modales XP
+   ========================================================================== */
+
+/* [MEDIA QUERY] Tablets Portrait: 768 x 1024 px */
+@media screen and (min-width: 768px) {
+  .nl-stock-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nl-stock-taxonomy-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nl-stock-search-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nl-stock-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nl-stock-modal-sizes-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nl-stock-modal-window {
+    max-height: calc(100vh - 96px);
+  }
+}
+
+/* [MEDIA QUERY] Tablets Estándar: 800 x 1280 px */
+@media screen and (min-width: 800px) {
+  .nl-stock-taxonomy-grid {
+    gap: 0.75rem;
+  }
+}
+
+/* [MEDIA QUERY] Tablets Air / iPad: 820 x 1180 px */
+@media screen and (min-width: 820px) {
+  .nl-stock-cards-grid {
+    gap: 0.875rem;
+  }
+}
+
+/* [MEDIA QUERY] Tablets Landscape / iPad Pro: 1024 x 1366 px */
+@media screen and (min-width: 1024px) {
+  .nl-stock-taxonomy-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .nl-stock-cards-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nl-stock-modal-sizes-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   BLOQUE DE MEDIA QUERIES: LAPTOPS Y MONITORES DESKTOP
+   ========================================================================== */
+
+/* [MEDIA QUERY] Laptops Estándar: 1280 x 720 px / 1366 x 768 px */
+@media screen and (min-width: 1280px) {
+  .nl-stock-cards-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.875rem;
+  }
+}
+
+/* [MEDIA QUERY] Laptops de Alta Resolución: 1440 x 900 px */
+@media screen and (min-width: 1440px) {
+  .nl-stock-kpi-grid {
+    gap: 0.75rem;
+  }
+}
+
+/* [MEDIA QUERY] Monitores Full HD Desktop: 1920 x 1080 px */
+@media screen and (min-width: 1920px) {
+  .nl-stock-cards-grid {
+    gap: 1rem;
+  }
+}

@@ -1,0 +1,194 @@
+/* ==========================================================================
+   BASE STYLES (MOBILE-FIRST: < 320px y base estructural)
+   ========================================================================== */
+.nl-cust-manager-wrapper {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.nl-cust-tabs-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.625rem;
+}
+
+.nl-cust-search-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.nl-cust-table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nl-cust-modal-window {
+  width: 100%;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
+.nl-cust-reports-modal-window {
+  width: 100%;
+  height: calc(100vh - 32px);
+  max-height: 660px;
+}
+
+/* ==========================================================================
+   MEDIA QUERY 1: Dispositivos Móviles Pequeños (320 x 568 px)
+   ========================================================================== */
+@media screen and (min-width: 320px) {
+  .nl-cust-manager-wrapper {
+    padding-left: 0.125rem;
+    padding-right: 0.125rem;
+  }
+
+  .nl-cust-modal-window {
+    max-width: 98vw;
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 2: Dispositivos Móviles Estándar (360 x 640 px a 360 x 800 px)
+   ========================================================================== */
+@media screen and (min-width: 360px) {
+  .nl-cust-manager-wrapper {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 3: Dispositivos Móviles Intermedios (375 x 667 px a 375 x 812 px)
+   ========================================================================== */
+@media screen and (min-width: 375px) {
+  .nl-cust-tabs-grid {
+    gap: 0.625rem;
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 4: Dispositivos Móviles Modernos (390 x 844 px / 393 x 852 px)
+   ========================================================================== */
+@media screen and (min-width: 390px) {
+  .nl-cust-modal-window {
+    max-width: 95vw;
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 5: Dispositivos Móviles Grandes Android (412 x 915 px)
+   ========================================================================== */
+@media screen and (min-width: 412px) {
+  .nl-cust-tabs-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 6: Dispositivos Móviles Max / Pro Max (430 x 932 px)
+   ========================================================================== */
+@media screen and (min-width: 430px) {
+  .nl-cust-search-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 7: RANGO CRÍTICO TABLETS PORTRAIT (768 x 1024 px)
+   Evita superposición de ventanas modales retro y barras de tareas
+   ========================================================================== */
+@media screen and (min-width: 768px) and (max-width: 1024px) {
+  .nl-cust-manager-wrapper {
+    padding-bottom: 4.5rem;
+  }
+
+  .nl-cust-tabs-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nl-cust-modal-window {
+    max-width: 520px;
+    max-height: calc(100vh - 64px);
+  }
+
+  .nl-cust-reports-modal-window {
+    max-width: 680px;
+    height: min(640px, calc(100vh - 64px));
+    max-height: calc(100vh - 64px);
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 8: Tablets 800 x 1280 px
+   ========================================================================== */
+@media screen and (min-width: 800px) {
+  .nl-cust-tabs-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 9: Tablets iPad Air / 820 x 1180 px
+   ========================================================================== */
+@media screen and (min-width: 820px) {
+  .nl-cust-tabs-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 10: Tablets Landscape & iPad Pro (1024 x 1366 px)
+   ========================================================================== */
+@media screen and (min-width: 1024px) {
+  .nl-cust-tabs-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .nl-cust-modal-window {
+    max-width: 32rem;
+  }
+
+  .nl-cust-reports-modal-window {
+    max-width: 42rem;
+    height: 660px;
+    max-height: 660px;
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 11: Laptops HD (1280 x 720 px / 1366 x 768 px)
+   ========================================================================== */
+@media screen and (min-width: 1280px) {
+  .nl-cust-reports-modal-window {
+    height: min(660px, calc(100vh - 48px));
+    max-height: min(660px, calc(100vh - 48px));
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 12: Laptops & Monitores WXGA+ (1440 x 900 px)
+   ========================================================================== */
+@media screen and (min-width: 1440px) {
+  .nl-cust-reports-modal-window {
+    height: 660px;
+    max-height: 660px;
+  }
+}
+
+/* ==========================================================================
+   MEDIA QUERY 13: Monitores Desktop Full HD (1920 x 1080 px)
+   ========================================================================== */
+@media screen and (min-width: 1920px) {
+  .nl-cust-manager-wrapper {
+    max-width: 1680px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
