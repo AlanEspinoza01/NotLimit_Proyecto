@@ -4,7 +4,7 @@
   "description": "API REST Backend para No Limits Cyber-Gothic Apparel OS",
   "main": "src/server.ts",
   "scripts": {
-    "dev": "tsx --env-file=src/middleware/.env watch src/server.ts",
+    "dev": "tsx watch --env-file=src/middleware/.env src/server.ts",
     "build": "tsc",
     "start": "node --env-file=src/middleware/.env dist/server.js"
   },

@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
@@ -18,8 +18,13 @@ export default defineConfig(() => {
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
       proxy: {
-        '/api': {
+        // Redirigir las solicitudes de la API al backend.
+        // Excluir axios.ts porque es código fuente del frontend.
+        '^/api/(?!axios\\.ts(?:$|\\?))': {
+          // Dirección del servidor Express.
           target: 'http://localhost:5000',
+
+          // Ajustar el origen de las solicitudes al destino.
           changeOrigin: true,
         },
       },
