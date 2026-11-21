@@ -1729,3 +1729,32 @@ export const createPublicOrder = async (req: Request, res: Response, next: NextF
     next(error);
   }
 };
+
+// ==========================================================================
+// CONTROLADOR AUTENTICADO: HISTORIAL DE ÓRDENES DEL CLIENTE ACTUAL
+// ==========================================================================
+export const getMyOrders = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ success: false, message: 'Debes iniciar sesión' });
+      return;
+    }
+
+    const userEmail = String(req.user.email || '').toLowerCase().trim();
+    const orders = await OrderModel.find({
+      $or: [
+        { userId: req.user._id },
+        ...(userEmail ? [{ customerEmail: userEmail }, { guestEmail: userEmail }] : [])
+      ]
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, data: orders });
+  } catch (error) {
+    next(error);
+  }
+};
+

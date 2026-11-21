@@ -5,6 +5,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useBranch, getBranchScheduleBlocks, formatBranchPickupSummary } from '../context/BranchContext';
 import { PixelIcon } from '../components/common/PixelIcon';
 import { INITIAL_PRODUCTS } from '../services/mockData';
+import api from '../api/axios';
 import {
   loadAndSyncProductsStock,
   ProductStockDetail
@@ -292,6 +293,7 @@ export const ProfileView: React.FC = () => {
   const [reviewTitle, setReviewTitle] = useState('');
   const [reviewComment, setReviewComment] = useState('');
   const [reviewPhotos, setReviewPhotos] = useState<string[]>([]);
+  const [reviewPhotoFiles, setReviewPhotoFiles] = useState<File[]>([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSuccessMessage, setReviewSuccessMessage] = useState<string | null>(null);
 
@@ -342,6 +344,102 @@ export const ProfileView: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('nolimits_my_published_reviews', JSON.stringify(myPublishedReviews));
   }, [myPublishedReviews]);
+
+  // Cargar órdenes reales y reseñas publicadas del usuario desde MongoDB
+  useEffect(() => {
+    if (!currentUser || currentUser.role === 'guest') return;
+    let isMounted = true;
+
+    const loadUserOrdersAndReviews = async () => {
+      try {
+        const [ordersRes, reviewsRes] = await Promise.all([
+          api.get('/orders/my-orders'),
+          api.get('/reviews/my-reviews')
+        ]);
+
+        if (isMounted && ordersRes.data?.success && Array.isArray(ordersRes.data.data)) {
+          const mongoOrders: PurchaseOrder[] = ordersRes.data.data.map((o: any) => ({
+            id: String(o._id),
+            orderNumber: o.orderNumber || 'NL-0000',
+            date: o.createdAt
+              ? new Date(o.createdAt).toLocaleDateString('es-CL', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+                })
+              : 'Reciente',
+            total: Number(o.total) || 0,
+            deliveryMethod: o.deliveryType === 'envio' ? 'shipping' : 'pickup',
+            branchName: o.branchName || 'Viña del Mar',
+            branchId: o.branchId || 'vina_del_mar',
+            courier: o.shippingDetails?.courier || 'Starken',
+            shippingAddress: o.shippingDetails?.address
+              ? `${o.shippingDetails.address.street} ${o.shippingDetails.address.number}, ${o.shippingDetails.address.comuna}`
+              : undefined,
+            trackingNumber: o.shippingDetails?.trackingNumber || undefined,
+            currentStatus: (o.status || o.fulfillmentStatus || 'Solicitud recibida') as any,
+            items: (o.items || []).map((it: any) => {
+              const matchedProd = catalogProducts.find(
+                (p) => p.id === String(it.productId) || p.sku === it.sku || p.title === it.name
+              );
+              return {
+                productId: String(it.productId || matchedProd?.id || ''),
+                title: it.name || matchedProd?.title || 'Prenda NoLimits',
+                size: it.size || 'Única',
+                color: matchedProd?.colors?.[0]?.name || 'Void Black',
+                quantity: Number(it.quantity) || 1,
+                price: Number(it.price) || 0,
+                image:
+                  matchedProd?.images?.[0] ||
+                  INITIAL_PRODUCTS[0]?.images[0] ||
+                  '',
+                isReviewed: Boolean(it.isReviewed)
+              };
+            })
+          }));
+
+          if (mongoOrders.length > 0) {
+            setOrders(mongoOrders);
+          }
+        }
+
+        if (isMounted && reviewsRes.data?.success && Array.isArray(reviewsRes.data.data)) {
+          const mongoReviews: UserPublishedReview[] = reviewsRes.data.data.map((r: any) => ({
+            id: String(r._id),
+            productId: String(r.productId?._id || r.productId || ''),
+            productTitle: r.productId?.title || r.productId?.name || 'Prenda NoLimits',
+            productImage:
+              r.productId?.images?.[0] ||
+              INITIAL_PRODUCTS[0]?.images[0] ||
+              '',
+            productSize: r.productSize || 'Única',
+            orderNumber: String(r.orderId || 'Verificada'),
+            rating: Number(r.rating) || 5,
+            title: r.title || 'Valoración de Prenda',
+            comment: r.comment || '',
+            photos: Array.isArray(r.photos) ? r.photos : [],
+            date: r.createdAt
+              ? new Date(r.createdAt).toLocaleDateString('es-CL', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+                })
+              : 'Reciente',
+            pointsEarned: Array.isArray(r.photos) && r.photos.length > 0 ? 100 : 20
+          }));
+
+          setMyPublishedReviews(mongoReviews);
+        }
+      } catch (err) {
+        console.error('Error cargando órdenes/reseñas desde MongoDB:', err);
+      }
+    };
+
+    loadUserOrdersAndReviews();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id]);
 
   // Catálogo de cupones canjeables administrado por el Super Admin en "Editar Cupones"
   const [adminCouponCatalog, setAdminCouponCatalog] = useState<CouponItem[]>(() =>
@@ -1706,7 +1804,11 @@ export const ProfileView: React.FC = () => {
         branchName: o.branchName
       }))
     )
-    .filter(item => !reviewedProductIds.includes(item.productId));
+    .filter((item: any) => {
+      if (item.isReviewed) return false;
+      const compositeKey = `${item.orderNumber}_${item.productId}`;
+      return !reviewedProductIds.includes(compositeKey);
+    });
 
   const filteredReturnRequests = returnRequests.filter(ret => {
     if (returnsFilter === 'in_progress') {
@@ -1777,8 +1879,11 @@ export const ProfileView: React.FC = () => {
     setCopiedCouponCode(code);
     setTimeout(() => setCopiedCouponCode(null), 2500);
   };
-
-  const handleOpenReviewModal = (item: { productId: string; title: string; image: string }, orderNumber: string) => {
+ 
+  const handleOpenReviewModal = (
+    item: { productId: string; title: string; image: string },
+    orderNumber: string
+  ) => {
     setReviewModalProduct({
       productId: item.productId,
       title: item.title,
@@ -1789,6 +1894,7 @@ export const ProfileView: React.FC = () => {
     setReviewTitle('');
     setReviewComment('');
     setReviewPhotos([]);
+    setReviewPhotoFiles([]);
     setReviewSuccessMessage(null);
   };
 
@@ -1813,17 +1919,20 @@ export const ProfileView: React.FC = () => {
       return;
     }
 
-    const filesArray = Array.from(files);
-    if (filesArray.length > remainingSlots) {
-      alert(`Has seleccionado ${filesArray.length} fotos, pero solo puedes adjuntar hasta 10 en total. Se cargarán las primeras ${remainingSlots} imagen(es).`);
+    const filesArray = Array.from(files).slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      alert(
+        `Has seleccionado ${files.length} fotos, pero solo puedes adjuntar hasta 10 en total. Se cargarán las primeras ${remainingSlots} imagen(es).`
+      );
     }
 
-    const filesToLoad = filesArray.slice(0, remainingSlots);
-    filesToLoad.forEach(file => {
+    setReviewPhotoFiles((prev) => [...prev, ...filesArray].slice(0, 10));
+
+    filesArray.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-          setReviewPhotos(prev => {
+          setReviewPhotos((prev) => {
             if (prev.length >= 10) return prev;
             return [...prev, event.target!.result as string];
           });
@@ -1835,68 +1944,104 @@ export const ProfileView: React.FC = () => {
     e.target.value = '';
   };
 
-  const handleSubmitReview = (e: React.FormEvent) => {
+  const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewModalProduct) return;
 
-    const hasPhotos = reviewPhotos.length > 0;
-    const earnedPoints = hasPhotos ? 100 : 20;
-
     setReviewSubmitting(true);
 
-    setTimeout(() => {
+    try {
+      const matchingOrder = orders.find(
+        (o) => o.orderNumber === reviewModalProduct.orderNumber
+      );
+      const matchingItem = matchingOrder?.items.find(
+        (it) => it.productId === reviewModalProduct.productId
+      );
+
+      const formData = new FormData();
+      formData.append('productId', reviewModalProduct.productId);
+      if (matchingOrder?.id) {
+        formData.append('orderId', matchingOrder.id);
+      }
+      formData.append('title', reviewTitle.trim() || 'Valoración de Prenda');
+      formData.append('rating', String(reviewRating));
+      formData.append('comment', reviewComment.trim());
+      formData.append('productSize', matchingItem?.size || 'Única');
+      formData.append('branchPurchased', matchingOrder?.branchName || 'Viña del Mar');
+
+      reviewPhotoFiles.forEach((file) => {
+        formData.append('photos', file);
+      });
+
+      const res = await api.post('/reviews', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const savedReview = res.data?.data;
+      const earnedPoints =
+        Number(res.data?.earnedPoints) || (reviewPhotoFiles.length > 0 ? 100 : 20);
+
       addLoyaltyPoints(earnedPoints);
 
-      const updatedReviewed = [...reviewedProductIds, reviewModalProduct.productId];
+      const compositeKey = `${reviewModalProduct.orderNumber}_${reviewModalProduct.productId}`;
+      const updatedReviewed = [...reviewedProductIds, compositeKey];
       setReviewedProductIds(updatedReviewed);
       localStorage.setItem('nolimits_user_reviewed_items', JSON.stringify(updatedReviewed));
 
+      // Marcar solo el producto de ESTA orden como reseñado en el estado local
+      setOrders((prev) =>
+        prev.map((ord) =>
+          ord.orderNumber === reviewModalProduct.orderNumber
+            ? {
+                ...ord,
+                items: ord.items.map((it) =>
+                  it.productId === reviewModalProduct.productId
+                    ? ({ ...it, isReviewed: true } as any)
+                    : it
+                )
+              }
+            : ord
+        )
+      );
+
       const newMyReview: UserPublishedReview = {
-        id: `my_rev_${Date.now()}`,
+        id: String(savedReview?._id || `my_rev_${Date.now()}`),
         productId: reviewModalProduct.productId,
         productTitle: reviewModalProduct.title,
         productImage: reviewModalProduct.image,
+        productSize: matchingItem?.size || 'Única',
         orderNumber: reviewModalProduct.orderNumber,
         rating: reviewRating,
-        title: reviewTitle || 'Prenda espectacular recomendada',
-        comment: reviewComment || 'Calidad y corte insuperables, la serigrafía es fiel al drop.',
-        photos: reviewPhotos,
-        date: new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' }),
+        title: reviewTitle.trim() || 'Valoración de Prenda',
+        comment: reviewComment.trim(),
+        photos: Array.isArray(savedReview?.photos) ? savedReview.photos : reviewPhotos,
+        date: new Date().toLocaleDateString('es-CL', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        }),
         pointsEarned: earnedPoints
       };
-      setMyPublishedReviews(prev => [newMyReview, ...prev]);
 
-      try {
-        const storageKey = `nolimits_reviews_${reviewModalProduct.productId}`;
-        const existingReviews = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        const newReview = {
-          id: `rev_user_${Date.now()}`,
-          productId: reviewModalProduct.productId,
-          userId: currentUser?.id,
-          userName: currentUser?.name || 'Cliente Verificado',
-          rating: reviewRating,
-          title: reviewTitle || 'Prenda espectacular recomendada',
-          comment: reviewComment || 'Calidad y corte insuperables, la serigrafía es fiel al drop.',
-          date: new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' }),
-          verifiedPurchase: true,
-          photos: reviewPhotos,
-          likes: 1
-        };
-        localStorage.setItem(storageKey, JSON.stringify([newReview, ...existingReviews]));
-      } catch {
-        // ignore
-      }
-
-      setReviewSubmitting(false);
+      setMyPublishedReviews((prev) => [newMyReview, ...prev]);
       setReviewSuccessMessage(
-        `¡Reseña publicada con éxito! Se han acreditado +${earnedPoints} Cyber Points a tu cuenta por incluir fotos reales.`
+        `¡Reseña publicada en MongoDB! Se han acreditado +${earnedPoints} Cyber Points a tu cuenta.`
       );
 
       setTimeout(() => {
         setReviewModalProduct(null);
         setReviewSuccessMessage(null);
       }, 2000);
-    }, 800);
+    } catch (error: any) {
+      console.error('Error publicando reseña en MongoDB:', error);
+      const msg =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'No se pudo publicar la reseña. Verifica que la compra esté en estado Entregado o Retirado.';
+      alert(`⚠ ${msg}`);
+    } finally {
+      setReviewSubmitting(false);
+    }
   };
 
   const filteredOrders = orders

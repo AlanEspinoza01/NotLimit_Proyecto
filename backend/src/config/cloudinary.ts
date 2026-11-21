@@ -18,6 +18,8 @@ const storage = new CloudinaryStorage({
       folderName = 'nolimits_settings';
     } else if (req.originalUrl?.includes('expenses')) {
       folderName = 'nolimits_expenses';
+    } else if (req.originalUrl?.includes('reviews')) {
+      folderName = 'nolimits_reviews';
     }
 
     return {

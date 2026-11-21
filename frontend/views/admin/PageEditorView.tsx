@@ -12,7 +12,6 @@ import {
   getCommunesByRegion,
   ShippingCourierId
 } from '../../services/shippingQuotesEngine';
-import { INITIAL_REVIEWS } from '../../services/mockData';
 import { Review, ReviewRecord } from '../../types';
 import {
   RedeemedUserCoupon,
@@ -427,18 +426,54 @@ export const PageEditorView: React.FC = () => {
   };
 
   // ==========================================================================
-  // ESTADO 3: EDITAR RESEÑAS
+  // ESTADO 3: EDITAR RESEÑAS (CONECTADO A MONGODB)
   // ==========================================================================
-  const [reviews, setReviews] = useState<Review[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_REVIEWS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+  const [reviews, setReviews] = useState<Review[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAdminReviews = async () => {
+      try {
+        const res = await api.get('/admin/reviews');
+        if (isMounted && res.data?.success && Array.isArray(res.data.data)) {
+          const mapped: Review[] = res.data.data.map((doc: any) => ({
+            id: String(doc._id),
+            productId: String(doc.productId?._id || doc.productId || ''),
+            userId: String(doc.userId?._id || doc.userId || ''),
+            userName: doc.userName || 'Cliente NoLimits',
+            rating: Number(doc.rating) || 5,
+            title: doc.title || 'Valoración de Prenda',
+            comment: doc.comment || '',
+            date: doc.createdAt
+              ? new Date(doc.createdAt).toLocaleDateString('es-CL', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                })
+              : '',
+            verifiedPurchase: true,
+            photos: Array.isArray(doc.photos) ? doc.photos : [],
+            likes: Number(doc.likes) || 0,
+            branchPurchased: doc.branchPurchased || 'Viña del Mar',
+            isHidden: Boolean(doc.isHidden),
+            userEmail: doc.userId?.email || '',
+            productTitle: doc.productId?.title || doc.productId?.name || '',
+            productImage: doc.productId?.images?.[0] || '',
+            productPrice: Number(doc.productId?.price) || 0,
+            productSku: doc.productId?.sku || '',
+            productCategory: doc.productId?.category || ''
+          } as Review));
+          setReviews(mapped);
+        }
+      } catch (err) {
+        console.error('Error cargando reseñas de administración desde MongoDB:', err);
       }
-    } catch (e) {}
-    return INITIAL_REVIEWS;
-  });
+    };
+    fetchAdminReviews();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const [reviewsSearch, setReviewsSearch] = useState('');
   const [selectedReviewDetail, setSelectedReviewDetail] = useState<Review | null>(null);
@@ -456,20 +491,63 @@ export const PageEditorView: React.FC = () => {
     setReviewToDelete(rev);
   };
 
-  const handleConfirmDeleteReview = () => {
+  const handleConfirmDeleteReview = async () => {
     if (!reviewToDelete) return;
     const reviewId = reviewToDelete.id;
-    const updated = reviews.filter((r) => r.id !== reviewId);
-    setReviews(updated);
-    if (selectedReviewDetail?.id === reviewId) {
-      setSelectedReviewDetail(null);
-    }
-    setReviewToDelete(null);
     try {
-      localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(updated));
-    } catch (e) {}
-    setFeedback({ type: 'success', message: '✓ Reseña eliminada del sistema.' });
-    setTimeout(() => setFeedback(null), 3000);
+      await api.delete(`/admin/reviews/${reviewId}`);
+      setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+      if (selectedReviewDetail?.id === reviewId) {
+        setSelectedReviewDetail(null);
+      }
+      setReviewToDelete(null);
+      setFeedback({
+        type: 'success',
+        message: '✓ Reseña y sus fotos eliminadas permanentemente de MongoDB y Cloudinary.'
+      });
+      setTimeout(() => setFeedback(null), 3500);
+    } catch (error: any) {
+      console.error('Error eliminando reseña:', error);
+      setFeedback({
+        type: 'error',
+        message: error.response?.data?.message || 'Error al eliminar la reseña en MongoDB.'
+      });
+      setTimeout(() => setFeedback(null), 3500);
+    }
+  };
+
+  const handleToggleReviewVisibility = async (rev: Review) => {
+    const currentlyHidden = Boolean((rev as any).isHidden);
+    try {
+      const res = await api.put(`/admin/reviews/${rev.id}/visibility`, {
+        isHidden: !currentlyHidden
+      });
+      const nextHidden =
+        typeof res.data?.data?.isHidden === 'boolean'
+          ? res.data.data.isHidden
+          : !currentlyHidden;
+
+      setReviews((prev) =>
+        prev.map((r) => (r.id === rev.id ? ({ ...r, isHidden: nextHidden } as Review) : r))
+      );
+      if (selectedReviewDetail?.id === rev.id) {
+        setSelectedReviewDetail({ ...selectedReviewDetail, isHidden: nextHidden } as Review);
+      }
+      setFeedback({
+        type: 'success',
+        message: nextHidden
+          ? '✓ Reseña ocultada del catálogo público en MongoDB.'
+          : '✓ Reseña visible nuevamente en el catálogo público.'
+      });
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (error: any) {
+      console.error('Error cambiando visibilidad de reseña:', error);
+      setFeedback({
+        type: 'error',
+        message: 'No se pudo actualizar la visibilidad de la reseña.'
+      });
+      setTimeout(() => setFeedback(null), 3500);
+    }
   };
 
   const handleOpenAddReviewModal = (rev: Review, initialType: 'preferencial' | 'negra' = 'preferencial') => {
@@ -534,7 +612,7 @@ export const PageEditorView: React.FC = () => {
 
     // Sincronizar también con el directorio de clientes (STORAGE_CUSTOMERS_KEY)
     try {
-      const reviewerEmail = getReviewUserEmail(targetReviewForRecord).toLowerCase();
+      const reviewerEmail = ((targetReviewForRecord as any).userEmail || getReviewUserEmail(targetReviewForRecord)).toLowerCase();
       const savedCustRaw = localStorage.getItem(STORAGE_CUSTOMERS_KEY);
       let custList: CustomerRecord[] = savedCustRaw
         ? JSON.parse(savedCustRaw).map(normalizeCustomer)
@@ -597,11 +675,11 @@ export const PageEditorView: React.FC = () => {
           nombre: firstName,
           apellido: lastName,
           rut: '19.000.000-K',
-          email: getReviewUserEmail(targetReviewForRecord),
+          email: reviewerEmail,
           phone: '+56 9 8000 0000',
           compras: 1,
           puntosClub: 50,
-          totalGastado: getReviewProductInfo(targetReviewForRecord).price,
+          totalGastado: (targetReviewForRecord as any).productPrice || getReviewProductInfo(targetReviewForRecord).price,
           etiquetas: [newTag],
           fechaRegistro: new Date().toISOString().split('T')[0],
           blacklistReports: isBlacklist
@@ -649,11 +727,12 @@ export const PageEditorView: React.FC = () => {
     const q = reviewsSearch.toLowerCase();
     return reviews.filter((r) => {
       const prodInfo = getReviewProductInfo(r);
-      const email = getReviewUserEmail(r);
+      const productTitle = ((r as any).productTitle || prodInfo.title || '').toLowerCase();
+      const email = ((r as any).userEmail || getReviewUserEmail(r) || '').toLowerCase();
       return (
         r.userName.toLowerCase().includes(q) ||
         email.toLowerCase().includes(q) ||
-        prodInfo.title.toLowerCase().includes(q) ||
+        productTitle.includes(q) ||
         r.title.toLowerCase().includes(q) ||
         r.comment.toLowerCase().includes(q)
       );
@@ -1485,6 +1564,7 @@ export const PageEditorView: React.FC = () => {
               filteredReviews={filteredReviews}
               setSelectedReviewDetail={setSelectedReviewDetail}
               handleOpenAddReviewModal={handleOpenAddReviewModal}
+              handleToggleReviewVisibility={handleToggleReviewVisibility}
               handleRequestDeleteReview={handleRequestDeleteReview}
             />
           )}

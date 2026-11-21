@@ -7,6 +7,7 @@ export interface IOrderItem {
   size: string;
   price: number;
   quantity: number;
+  isReviewed?: boolean;
 }
 
 export interface IShippingAddress {
@@ -76,6 +77,7 @@ const OrderItemSchema = new Schema<IOrderItem>(
     size: { type: String, default: 'Única', trim: true },
     price: { type: Number, required: true, min: 0 },
     quantity: { type: Number, required: true, min: 1 },
+    isReviewed: { type: Boolean, default: false },
   },
   { _id: false }
 );

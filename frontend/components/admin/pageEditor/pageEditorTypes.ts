@@ -323,13 +323,28 @@ export function formatChileanWhatsApp(raw: string): string {
 // ============================================================================
 // 5. HELPERS DE RESEÑAS
 // ============================================================================
+
 export function getReviewProductInfo(rev: Review) {
+  const anyRev = rev as any;
+  if (anyRev.productTitle) {
+    return {
+      title: anyRev.productTitle,
+      sku: anyRev.productSku || 'SIN-SKU',
+      category: anyRev.productCategory || 'General',
+      price: Number(anyRev.productPrice) || 0,
+      image:
+        anyRev.productImage ||
+        rev.photos?.[0] ||
+        'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800'
+    };
+  }
+
   const found = INITIAL_PRODUCTS.find((p) => p.id === rev.productId);
   return {
-    title: rev.productName || found?.title || 'Cyber-Tribal Overkill Zip Hoodie',
-    sku: found?.sku || 'NL-CYB-001',
-    category: found?.category || 'Polerones & Hoodies',
-    price: found?.salePrice || found?.price || 44990,
+    title: rev.productName || found?.title || 'Prenda NoLimits',
+    sku: found?.sku || 'SIN-SKU',
+    category: found?.category || 'General',
+    price: found?.salePrice || found?.price || 0,
     image:
       found?.images?.[0] ||
       rev.photos?.[0] ||
@@ -338,7 +353,10 @@ export function getReviewProductInfo(rev: Review) {
 }
 
 export function getReviewUserEmail(rev: Review): string {
-  if (rev.userEmail && rev.userEmail.trim()) return rev.userEmail;
+  const anyRev = rev as any;
+  if (anyRev.userEmail && String(anyRev.userEmail).trim()) {
+    return String(anyRev.userEmail).trim();
+  }
   const initialMatch = INITIAL_REVIEWS.find((ir) => ir.id === rev.id);
   if (initialMatch?.userEmail) return initialMatch.userEmail;
   const slug = rev.userName

@@ -33,6 +33,12 @@ import {
     deleteSystemAlert
 } from '../controllers/admin.controller';
 
+import {
+    getAllReviewsAdmin,
+    toggleReviewVisibility,
+    deleteReview
+} from '../controllers/review.controller';
+
 import authenticateUser from '../middleware/authenticateUser';
 import authorizeRoles from '../middleware/authorizeRoles';
 import { uploadMiddleware } from '../config/cloudinary';
@@ -92,5 +98,11 @@ adminRouter.get('/alerts', getSystemAlerts);
 adminRouter.post('/alerts', createSystemAlert);
 adminRouter.put('/alerts/:id', updateSystemAlert);
 adminRouter.delete('/alerts/:id', authorizeRoles('super_admin'), deleteSystemAlert);
+
+
+// RUTAS DE MODERACIÓN DE RESEÑAS (REVIEWS)
+adminRouter.get('/reviews', getAllReviewsAdmin);
+adminRouter.put('/reviews/:id/visibility', toggleReviewVisibility);
+adminRouter.delete('/reviews/:id', deleteReview);
 
 export default adminRouter;
