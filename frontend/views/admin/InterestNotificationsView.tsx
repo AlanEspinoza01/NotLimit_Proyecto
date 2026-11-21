@@ -92,9 +92,24 @@ export type {
 // Mapear documento de SystemAlertModel (MongoDB) a la interfaz SystemAlert del frontend
 const mapMongoAlertToFrontend = (doc: any): SystemAlert => {
   const id = doc._id?.toString() || doc.id || `alt_${Date.now()}`;
+  const isReturnAlert = doc.category === 'devolucion';
+  const evidencePhotos: string[] = Array.isArray(doc.referencePhotos)
+    ? doc.referencePhotos.filter(Boolean)
+    : [];
+
   const rawProds = Array.isArray(doc.products) ? doc.products : [];
-  const enrichedProducts = rawProds.map((p: any, idx: number) =>
-    enrichAlertProductItem(
+  const enrichedProducts = rawProds.map((p: any, idx: number) => {
+    const baseImages = Array.isArray(p.images) ? p.images : p.image ? [p.image] : [];
+    const finalImages =
+      isReturnAlert && evidencePhotos.length > 0
+        ? evidencePhotos
+        : baseImages;
+    const finalMainImage =
+      isReturnAlert && evidencePhotos.length > 0
+        ? evidencePhotos[0]
+        : p.image || baseImages[0] || '';
+
+    return enrichAlertProductItem(
       {
         id: p.id || `prod_${idx + 1}`,
         name: p.name || 'Prenda NoLimits',
@@ -102,14 +117,14 @@ const mapMongoAlertToFrontend = (doc: any): SystemAlert => {
         size: p.size || 'Única',
         price: Number(p.price) || 0,
         sku: p.sku || 'NL-SKU',
-        image: p.image || '',
-        images: Array.isArray(p.images) ? p.images : p.image ? [p.image] : [],
+        image: finalMainImage,
+        images: finalImages,
         description: p.description || '',
         category: p.category || ''
       },
       idx
-    )
-  );
+    );
+  });
 
   return {
     ...doc,
@@ -119,8 +134,8 @@ const mapMongoAlertToFrontend = (doc: any): SystemAlert => {
     description: doc.description || '',
     severity: doc.severity || 'high',
     customerName: doc.customerName || 'Cliente NoLimits',
-    customerRut: doc.customerRut || '20.104.992-1',
-    customerPhone: doc.customerPhone || '+56 9 0000 0000',
+    customerRut: doc.customerRut?.trim() ? doc.customerRut : 'Sin RUT',
+    customerPhone: doc.customerPhone?.trim() ? doc.customerPhone : 'Sin teléfono',
     customerEmail: doc.customerEmail || 'cliente@nolimits.cl',
     branchId: doc.branchId || 'casa_matriz',
     deliveryType: doc.deliveryType || 'retiro',
@@ -131,7 +146,7 @@ const mapMongoAlertToFrontend = (doc: any): SystemAlert => {
     productName: doc.productName || enrichedProducts[0]?.name || undefined,
     productLink: doc.productLink || undefined,
     products: enrichedProducts,
-    referencePhotos: Array.isArray(doc.referencePhotos) ? doc.referencePhotos : undefined,
+    referencePhotos: evidencePhotos.length > 0 ? evidencePhotos : undefined,
     timeLimitText: doc.timeLimitText || '24 horas',
     dueHours: Number(doc.dueHours) || 24,
     status: doc.status === 'resolved' ? 'resolved' : 'active',
@@ -143,6 +158,75 @@ const mapMongoAlertToFrontend = (doc: any): SystemAlert => {
     trackingCode: doc.trackingCode || undefined,
     createdAt: doc.createdAt || new Date().toISOString(),
     isAutomated: doc.isAutomated ?? true
+  } as SystemAlert;
+};
+
+// Mapear documento de ReturnModel (colección 'returns') a SystemAlert para la pestaña Devoluciones
+const mapMongoReturnToFrontendAlert = (doc: any): SystemAlert => {
+  const id = doc._id?.toString() || doc.id || `ret_${Date.now()}`;
+  const evidencePhotos: string[] = Array.isArray(doc.evidencePhotos)
+    ? doc.evidencePhotos.filter(Boolean)
+    : [];
+
+  const rawProds = Array.isArray(doc.products) ? doc.products : [];
+  const enrichedProducts = rawProds.map((p: any, idx: number) =>
+    enrichAlertProductItem(
+      {
+        id: p.id || `prod_${idx + 1}`,
+        name: p.name || 'Prenda NoLimits',
+        quantity: Number(p.quantity) || 1,
+        size: p.size || 'Única',
+        price: Number(p.price) || 0,
+        sku: p.sku || 'NL-SKU',
+        image: evidencePhotos[0] || p.image || '',
+        images: evidencePhotos.length > 0 ? evidencePhotos : p.image ? [p.image] : [],
+        description: doc.notes || '',
+        category: ''
+      },
+      idx
+    )
+  );
+
+  const isResolved =
+    doc.returnReviewStatus === 'approved' || doc.returnReviewStatus === 'rejected';
+
+  return {
+    id,
+    category: 'devolucion',
+    title: `Solicitud de Devolución #${doc.ticketNumber || 'DEV'} — ${
+      enrichedProducts[0]?.name || 'Prenda'
+    }`,
+    description: doc.notes || '',
+    severity: 'warning',
+    customerName: doc.customerName || 'Cliente NoLimits',
+    customerRut: doc.customerRut?.trim() ? doc.customerRut : 'Sin RUT',
+    customerPhone: doc.customerPhone?.trim() ? doc.customerPhone : 'Sin teléfono',
+    customerEmail: doc.customerEmail || 'cliente@nolimits.cl',
+    branchId: doc.branchId || 'vina_del_mar',
+    deliveryType: doc.deliveryType === 'envio' ? 'envio' : 'retiro',
+    deliveryMethodText: doc.targetBranchName || '',
+    shippingCourier: doc.returnCourier || '',
+    shippingCostClp: Number(doc.shippingCostClp) || 0,
+    shippingAddress: doc.shippingAddress || undefined,
+    orderNumber: doc.orderNumber || undefined,
+    amount: Number(doc.totalAmount) || 0,
+    productName: enrichedProducts[0]?.name || undefined,
+    products: enrichedProducts,
+    referencePhotos: evidencePhotos,
+    returnReason: doc.reason || 'Defecto de fabricación',
+    timeLimitText: '24 horas',
+    dueHours: 24,
+    status: isResolved ? 'resolved' : 'active',
+    resolvedAt: doc.resolvedAt || undefined,
+    replyNote: doc.replyNote || undefined,
+    returnReviewStatus:
+      doc.returnReviewStatus === 'approved' || doc.returnReviewStatus === 'rejected'
+        ? doc.returnReviewStatus
+        : undefined,
+    rejectionReason: doc.rejectionReason || undefined,
+    trackingCode: doc.trackingCode || undefined,
+    createdAt: doc.createdAt || new Date().toISOString(),
+    isAutomated: false
   } as SystemAlert;
 };
 
@@ -197,53 +281,42 @@ export const InterestNotificationsView: React.FC = () => {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Cargar alertas y clientes desde MongoDB (y sembrar si la colección system_alerts está vacía)
+  // Cargar alertas (system_alerts), clientes (users) y devoluciones (returns) desde MongoDB
   const fetchAlertsFromMongoDB = async (showNotification = false) => {
     setIsRefreshing(true);
     try {
-      const [alertsRes, custRes] = await Promise.all([
+      const [alertsRes, custRes, returnsRes] = await Promise.all([
         api.get('/admin/alerts'),
-        api.get('/admin/customers')
+        api.get('/admin/customers'),
+        api.get('/returns/admin')
       ]);
 
       if (custRes.data?.success && Array.isArray(custRes.data.data)) {
         setDbCustomers(custRes.data.data);
       }
 
+      const mappedReturns: SystemAlert[] =
+        returnsRes.data?.success && Array.isArray(returnsRes.data.data)
+          ? returnsRes.data.data.map(mapMongoReturnToFrontendAlert)
+          : [];
+
+      let mappedOtherAlerts: SystemAlert[] = [];
       if (alertsRes.data?.success && Array.isArray(alertsRes.data.data)) {
-        let docs = alertsRes.data.data;
+        mappedOtherAlerts = alertsRes.data.data
+          .filter((doc: any) => doc.category !== 'devolucion')
+          .map(mapMongoAlertToFrontend);
+      }
 
-        // Si aún no hay alertas en MongoDB, sembramos las alertas iniciales de referencia
-        if (docs.length === 0) {
-          const seedSource = loadAndReconcileSystemAlerts();
-          const createdDocs: any[] = [];
-          for (const item of seedSource) {
-            try {
-              const res = await api.post('/admin/alerts', {
-                ...item,
-                branchId: (item as any).branchId || 'casa_matriz',
-                customerEmail: item.customerEmail || getAlertEmail(item),
-                products: getAlertProducts(item),
-                shippingAddress: getAlertShippingAddress(item) || null,
-                referencePhotos: getAlertReferencePhotos(item)
-              });
-              if (res.data?.data) createdDocs.push(res.data.data);
-            } catch (seedErr) {
-              console.warn('Error sembrando alerta inicial:', seedErr);
-            }
-          }
-          docs = createdDocs;
-        }
+      const combined = [...mappedReturns, ...mappedOtherAlerts];
+      setAlerts(combined);
 
-        const mapped = docs.map(mapMongoAlertToFrontend);
-        setAlerts(mapped);
-        if (showNotification) {
-          triggerToast(`✓ Alertas sincronizadas desde MongoDB (${mapped.length} registro(s))`);
-        }
+      if (showNotification) {
+        triggerToast(
+          `✓ Sincronizado desde MongoDB (${mappedReturns.length} devolución(es) y ${mappedOtherAlerts.length} alerta(s))`
+        );
       }
     } catch (error) {
       console.error('Error cargando alertas desde MongoDB:', error);
-      // Fallback local si el backend aún se está reiniciando
       setAlerts(loadAndReconcileSystemAlerts());
       if (showNotification) {
         triggerToast('Error al conectar con MongoDB; mostrando caché local');
@@ -397,7 +470,7 @@ export const InterestNotificationsView: React.FC = () => {
     setConfirmActionModal(null);
   };
 
-  // Ejecutar decisión de "Revisión de equipo" en Solicitud de Devolución (MongoDB)
+  // Ejecutar decisión de "Revisión de equipo" en Solicitud de Devolución (MongoDB: returns + orders)
   const handleExecuteReturnReview = async () => {
     if (!returnReviewModal) return;
     const { alert: targetAlert, decision, rejectionReason, trackingCode } = returnReviewModal;
@@ -441,10 +514,8 @@ export const InterestNotificationsView: React.FC = () => {
       : `Revisión de equipo: Rechazada por Admin. Razón del rechazo: "${cleanReason}"`;
 
     try {
-      await api.put(`/admin/alerts/${targetAlert.id}`, {
-        status: 'resolved',
-        resolvedAt,
-        returnReviewStatus: isApproved ? 'approved' : 'rejected',
+      await api.put(`/returns/admin/${targetAlert.id}/review`, {
+        decision,
         rejectionReason: isApproved ? '' : cleanReason,
         trackingCode: isApproved && isHomeDelivery ? cleanTracking : '',
         replyNote: noteText
@@ -671,9 +742,9 @@ export const InterestNotificationsView: React.FC = () => {
         id: `cust_alert_${al.id}`,
         nombre,
         apellido,
-        rut: al.customerRut || '20.104.992-1',
+        rut: al.customerRut || 'Sin RUT',
         email: getAlertEmail(al),
-        phone: al.customerPhone || '+56 9 0000 0000',
+        phone: al.customerPhone || 'Sin teléfono',
         compras: 1,
         puntosClub: 30,
         totalGastado: al.amount || 38990,
@@ -769,7 +840,6 @@ export const InterestNotificationsView: React.FC = () => {
           preferentialReports: updatedPreferentialReports
         });
       } else {
-        // Si el cliente de la alerta aún no existía en UserModel, lo creamos con su reporte
         const createRes = await api.post('/admin/customers', {
           firstName: customer.nombre,
           lastName: customer.apellido,
@@ -834,7 +904,7 @@ export const InterestNotificationsView: React.FC = () => {
       <WindowFrame
         title="INTEREST_NOTIFICATIONS_CENTER.SYS - [Centro de Notificaciones & Alertas Automatizadas (MongoDB) - Super Admin]"
         icon={<PixelIcon name="computer" size={16} />}
-        statusBarText={`SUPER ADMIN // MONGODB SYSTEM_ALERTS ACTIVO // 5 CATEGORÍAS ACTIVAS // TOTAL ALERTAS: ${alerts.length}`}
+        statusBarText={`SUPER ADMIN // MONGODB SYSTEM_ALERTS + RETURNS ACTIVO // 5 CATEGORÍAS ACTIVAS // TOTAL: ${alerts.length}`}
       >
         <div className="space-y-4 text-xs">
           {/* Cabecera, Toast, Tarjetas KPI, Pestañas y Barra de Filtros */}

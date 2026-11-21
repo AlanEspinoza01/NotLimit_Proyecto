@@ -6,6 +6,7 @@ import reviewRouter from './review.routes';
 import adminRouter from './admin.routes';
 import authenticateUser from '../middleware/authenticateUser';
 import webpayRouter from './webpay.routes';
+import returnRouter from './return.routes';
 import {
  getProducts,
   getBranches,
@@ -36,5 +37,7 @@ apiRouter.use('/system/session-policy', sessionPolicyRoutes);
 apiRouter.use('/admin', adminRouter);
 
 apiRouter.use('/reviews', reviewRouter);
+
+apiRouter.use('/returns', returnRouter);
 
 export default apiRouter;

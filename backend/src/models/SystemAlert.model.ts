@@ -52,6 +52,10 @@ export interface ISystemAlert extends Document {
   paymentResolutionStatus?: 'confirmed' | 'cancelled';
   returnReviewStatus?: 'approved' | 'rejected';
   rejectionReason?: string;
+  ticketNumber?: string;
+  returnReason?: string;
+  returnStage?: string;
+  paidByStore?: boolean;
   trackingCode?: string;
   registeredByAdmin?: string;
   isAutomated: boolean;
@@ -122,6 +126,10 @@ const SystemAlertSchema = new Schema<ISystemAlert>(
     paymentResolutionStatus: { type: String, default: '' },
     returnReviewStatus: { type: String, default: '' },
     rejectionReason: { type: String, default: '' },
+    ticketNumber: { type: String, default: '' },
+    returnReason: { type: String, default: '' },
+    returnStage: { type: String, default: 'Solicitud recibida' },
+    paidByStore: { type: Boolean, default: true },
     trackingCode: { type: String, default: '' },
     registeredByAdmin: { type: String, default: 'Super Admin' },
     isAutomated: { type: Boolean, default: true },

@@ -53,7 +53,7 @@ export interface ClientShippingOriginResult {
   recipientName: string;
   fullStreetAddress: string;
 }
- 
+
 export interface ProfileModalsProps {
   currentUser: any;
   orders: PurchaseOrder[];
@@ -200,6 +200,9 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
   isPickupScheduleModalOpen,
   setIsPickupScheduleModalOpen
 }) => {
+  void selectedReturnCourier;
+  void setSelectedReturnCourier;
+
   return (
     <>
       {/* =========================================================================
@@ -766,15 +769,14 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
                       </p>
                     </div>
 
-                    {/* Sección 3: Condiciones de Envío (Paket vs Starken y Blue Express) */}
+                    {/* Sección 3: Condiciones de Envío (Exclusivo Paket Express) */}
                     <div className="space-y-1 bg-amber-50 p-2.5 border border-amber-300 rounded-xs">
                       <div className="font-bold text-amber-950 text-[11px] flex items-center gap-1">
                         <Truck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                         <span>Política de Envío en Devoluciones:</span>
                       </div>
                       <p className="text-amber-950 leading-relaxed text-[10px]">
-                        • <strong>Paket Express:</strong> Nolimits <strong>SÍ paga la devolución por Paket ($0 CLP para el cliente)</strong>.<br />
-                        • <strong>Starken y Blue Express:</strong> Nolimits <strong>NO realiza devoluciones pagadas por Starken ni Blue Express</strong> (el valor del envío se calcula automáticamente en el siguiente paso con los datos de tu cuenta).
+                        • <strong>Paket Express (Único Courier Habilitado):</strong> Las devoluciones por envío se realizan <strong>exclusivamente por Paket Express ($0 CLP para el cliente, 100% pagado por NoLimits)</strong>. No se gestionan devoluciones por Starken ni Blue Express.
                       </p>
                     </div>
                   </div>
@@ -896,13 +898,13 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
                     </div>
                   </div>
 
-                  {/* 2. Modalidad de Entrega o Envío con Cálculo Automático */}
+                  {/* 2. Modalidad de Entrega o Envío (Exclusivo Paket Express) */}
                   <div className="space-y-2">
                     <label className="block text-xs font-bold text-gray-800">
                       Modalidad para Entrega o Devolución: <span className="text-red-600">*</span>
                     </label>
                     <div className="text-[11px] text-gray-500 mb-1">
-                      Elige si entregarás la prenda presencialmente en una sucursal física o mediante envío por courier:
+                      Elige si entregarás la prenda presencialmente en una sucursal física o mediante envío por Paket Express:
                     </div>
 
                     {/* Selector de Modalidad: Sucursal Física vs Envío */}
@@ -930,7 +932,7 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
                         }`}
                       >
                         <Truck className="w-3.5 h-3.5 text-blue-700" />
-                        <span>Devolución por Envío</span>
+                        <span>Devolución por Envío (Paket)</span>
                       </button>
                     </div>
 
@@ -966,7 +968,7 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
                             <div className="flex items-center justify-between border-b border-blue-200 pb-1.5">
                               <div className="font-bold text-blue-950 text-xs flex items-center gap-1.5">
                                 <Truck className="w-4 h-4 text-blue-700 shrink-0" />
-                                <span>Cálculo Automático de Envío de Devolución</span>
+                                <span>Envío de Devolución — Paket Express</span>
                               </div>
                             </div>
 
@@ -1009,21 +1011,13 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
                               </div>
                             </div>
 
-                            {/* Tarjetas de Selección de Courier */}
+                            {/* Courier Exclusivo: Paket Express */}
                             <div className="space-y-1.5">
                               <div className="text-[11px] font-bold text-gray-800">
-                                Selecciona el Courier para tu Devolución:
+                                Courier Oficial para Devoluciones:
                               </div>
 
-                              {/* 1. PAKET EXPRESS - PAGADO POR NOLIMITS */}
-                              <div
-                                onClick={() => setSelectedReturnCourier('paket')}
-                                className={`p-2.5 border rounded-xs cursor-pointer transition-all flex items-center justify-between gap-2 ${
-                                  selectedReturnCourier === 'paket'
-                                    ? 'bg-emerald-50 border-emerald-600 ring-2 ring-emerald-400 shadow-xs'
-                                    : 'bg-white border-gray-300 hover:bg-gray-50'
-                                }`}
-                              >
+                              <div className="p-2.5 border rounded-xs bg-emerald-50 border-emerald-600 ring-2 ring-emerald-400 shadow-xs flex items-center justify-between gap-2">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="font-bold text-xs text-gray-900">Paket Express</span>
@@ -1032,11 +1026,11 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
                                       style={{ color: '#ffffff', backgroundColor: '#15803d' }}
                                       className="!text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase"
                                     >
-                                      ✓ Devolución Pagada por Nolimits
+                                      ✓ Devolución Pagada por NoLimits
                                     </span>
                                   </div>
                                   <div className="text-[10px] text-emerald-900 font-medium">
-                                    Nolimits cubre el 100% del envío de devolución por Paket ({returnShippingCommune}).
+                                    Único courier habilitado. NoLimits cubre el 100% del envío de devolución desde {returnShippingCommune}.
                                   </div>
                                 </div>
                                 <div className="text-right shrink-0">
@@ -1048,88 +1042,16 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
                                   </div>
                                 </div>
                               </div>
-
-                              {/* 2. STARKEN - NO PAGADO POR NOLIMITS */}
-                              <div
-                                onClick={() => setSelectedReturnCourier('starken')}
-                                className={`p-2.5 border rounded-xs cursor-pointer transition-all flex items-center justify-between gap-2 ${
-                                  selectedReturnCourier === 'starken'
-                                    ? 'bg-amber-50 border-amber-600 ring-2 ring-amber-400 shadow-xs'
-                                    : 'bg-white border-gray-300 hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-bold text-xs text-gray-900">Starken</span>
-                                    <span className="bg-red-100 text-red-800 border border-red-300 text-[9px] font-bold px-1.5 py-0.5 rounded-xs uppercase">
-                                      No pagado por Nolimits
-                                    </span>
-                                  </div>
-                                  <div className="text-[10px] text-gray-600">
-                                    Envío calculado automáticamente según comuna ({returnShippingCommune}). Costo a cargo del cliente.
-                                  </div>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <div className="text-xs font-black text-red-700 font-mono">
-                                    ${calc.starkenCustomerCost.toLocaleString('es-CL')} CLP
-                                  </div>
-                                  <div className="text-[9px] text-gray-500 font-semibold">
-                                    Paga el cliente
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* 3. BLUE EXPRESS - NO PAGADO POR NOLIMITS */}
-                              <div
-                                onClick={() => setSelectedReturnCourier('blue_express')}
-                                className={`p-2.5 border rounded-xs cursor-pointer transition-all flex items-center justify-between gap-2 ${
-                                  selectedReturnCourier === 'blue_express'
-                                    ? 'bg-amber-50 border-amber-600 ring-2 ring-amber-400 shadow-xs'
-                                    : 'bg-white border-gray-300 hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="space-y-0.5">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-bold text-xs text-gray-900">Blue Express</span>
-                                    <span className="bg-red-100 text-red-800 border border-red-300 text-[9px] font-bold px-1.5 py-0.5 rounded-xs uppercase">
-                                      No pagado por Nolimits
-                                    </span>
-                                  </div>
-                                  <div className="text-[10px] text-gray-600">
-                                    Envío calculado automáticamente según comuna ({returnShippingCommune}). Costo a cargo del cliente.
-                                  </div>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <div className="text-xs font-black text-red-700 font-mono">
-                                    ${calc.blueCustomerCost.toLocaleString('es-CL')} CLP
-                                  </div>
-                                  <div className="text-[9px] text-gray-500 font-semibold">
-                                    Paga el cliente
-                                  </div>
-                                </div>
-                              </div>
                             </div>
 
-                            {/* Resumen Final del Cálculo Automático */}
-                            <div
-                              className={`p-2.5 border rounded-xs flex items-center justify-between gap-2 ${
-                                calc.isPaidByStore
-                                  ? 'bg-emerald-100/80 border-emerald-500 text-emerald-950'
-                                  : 'bg-amber-100/80 border-amber-500 text-amber-950'
-                              }`}
-                            >
+                            {/* Resumen Final */}
+                            <div className="p-2.5 border rounded-xs flex items-center justify-between gap-2 bg-emerald-100/80 border-emerald-500 text-emerald-950">
                               <div className="text-[11px]">
-                                <span className="font-bold">Total Envío ({calc.selectedCourierLabel}): </span>
-                                <span>
-                                  {calc.isPaidByStore
-                                    ? 'Cubierto 100% por Nolimits (Devolución pagada por la tienda)'
-                                    : 'No cubierto por Nolimits (Valor calculado a pagar por el cliente)'}
-                                </span>
+                                <span className="font-bold">Total Envío (Paket Express): </span>
+                                <span>Cubierto 100% por NoLimits (Devolución sin costo para el cliente)</span>
                               </div>
                               <div className="font-mono font-black text-xs shrink-0">
-                                {calc.isPaidByStore
-                                  ? '$0 CLP'
-                                  : `$${calc.selectedCostForCustomer.toLocaleString('es-CL')} CLP`}
+                                $0 CLP
                               </div>
                             </div>
                           </div>
@@ -1142,7 +1064,7 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-xs font-bold text-gray-800">
-                        . Observaciones adicionales:
+                        Observaciones adicionales:
                       </label>
                       <span className={`text-[10px] font-mono ${
                         selectedReturnNotes.length >= 600 ? 'text-red-600 font-bold' : 'text-gray-500'
@@ -1171,17 +1093,28 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
                     </div>
                   </div>
 
-                  {/* 4. Fotos de Respaldo (Máximo 10 Fotos) */}
+                  {/* 4. Fotos de Respaldo (Mínimo 1, Máximo 10 Fotos) */}
                   <div className="space-y-2 pt-1 border-t border-gray-200">
                     <div className="flex flex-wrap items-center justify-between gap-1">
                       <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
                         <Camera className="w-3.5 h-3.5 text-blue-700" />
-                        <span>Subir Fotos de Respaldo (Máximo 10 fotos):</span>
+                        <span>
+                          Subir Fotos de Respaldo (Mínimo 1, Máximo 10 fotos):{' '}
+                          <span className="text-red-600">*</span>
+                        </span>
                       </label>
-                      <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${
-                        returnPhotos.length >= 10 ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'
-                      }`}>
-                        {returnPhotos.length} / 10 fotos máximo
+                      <span
+                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${
+                          returnPhotos.length === 0
+                            ? 'bg-red-100 text-red-800 border border-red-300'
+                            : returnPhotos.length >= 10
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-emerald-100 text-emerald-900 border border-emerald-400'
+                        }`}
+                      >
+                        {returnPhotos.length === 0
+                          ? 'Obligatorio (0 / 10)'
+                          : `${returnPhotos.length} / 10 fotos`}
                       </span>
                     </div>
 
@@ -1260,7 +1193,13 @@ export const ProfileModals: React.FC<ProfileModalsProps> = ({
 
                   <button
                     type="submit"
-                    className="winxp-button winxp-button-primary text-xs py-1.5 px-5 font-bold text-blue-900 flex items-center gap-1.5 cursor-pointer shadow-sm"
+                    disabled={returnPhotos.length === 0}
+                    title={
+                      returnPhotos.length === 0
+                        ? 'Debes subir al menos 1 foto de respaldo para continuar'
+                        : 'Enviar solicitud de devolución'
+                    }
+                    className="winxp-button winxp-button-primary text-xs py-1.5 px-5 font-bold text-blue-900 flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Check className="w-3.5 h-3.5 text-blue-700" />
                     <span>Ingresar Solicitud de Devolución</span>

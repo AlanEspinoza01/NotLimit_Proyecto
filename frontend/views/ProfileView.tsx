@@ -55,7 +55,6 @@ export type {
   ProfileTabId
 } from '../components/profile/profileTypes';
 
-
 import {
   UserAddress,
   OWNER_RETURN_REASONS,
@@ -122,47 +121,47 @@ export const ProfileView: React.FC = () => {
     });
   }, [branches]);
 
-  // Estados del Formulario de Perfil en "Configuración" (Nombre y Apellido máx. 50 caracteres)
+  // Estados del Formulario de Perfil en "Configuración" (sin datos de maqueta)
   const [profileFirstName, setProfileFirstName] = useState(() => {
     if (currentUser?.firstName) return currentUser.firstName.slice(0, 50);
-    const parts = (currentUser?.name || '').split(' ');
-    return (parts[0] || 'Valeria').slice(0, 50);
+    const parts = (currentUser?.name || '').trim().split(' ');
+    return (parts[0] || '').slice(0, 50);
   });
 
   const [profileLastName, setProfileLastName] = useState(() => {
     if (currentUser?.lastName) return currentUser.lastName.slice(0, 50);
-    const parts = (currentUser?.name || '').split(' ');
-    return (parts.slice(1).join(' ') || 'Gallardo').slice(0, 50);
+    const parts = (currentUser?.name || '').trim().split(' ');
+    return parts.slice(1).join(' ').slice(0, 50);
   });
 
   const [profileRut, setProfileRut] = useState(() => {
-    return formatRutWithDotsAndDash(currentUser?.rut || '198765432');
+    return currentUser?.rut ? formatRutWithDotsAndDash(currentUser.rut) : '';
   });
 
   const [profileEmail, setProfileEmail] = useState(() => {
-    return currentUser?.email || 'valeria.cyber@gmail.com';
+    return currentUser?.email || '';
   });
 
   const [profilePhone, setProfilePhone] = useState(() => {
-    return formatChileanMobilePhone(currentUser?.phone || '956896328');
+    return currentUser?.phone ? formatChileanMobilePhone(currentUser.phone) : '';
   });
 
   const [profileAvatarUrl, setProfileAvatarUrl] = useState(() => {
-    return currentUser?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80';
+    return currentUser?.avatarUrl || '';
   });
 
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
   const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
 
-  // Sincronizar campos cuando cambie el usuario autenticado
+  // Sincronizar campos cuando cambie el usuario autenticado (limpiando si vienen vacíos)
   useEffect(() => {
     if (currentUser) {
-      if (currentUser.firstName) setProfileFirstName(currentUser.firstName.slice(0, 50));
-      if (currentUser.lastName) setProfileLastName(currentUser.lastName.slice(0, 50));
-      if (currentUser.rut) setProfileRut(formatRutWithDotsAndDash(currentUser.rut));
-      if (currentUser.email) setProfileEmail(currentUser.email);
-      if (currentUser.phone) setProfilePhone(formatChileanMobilePhone(currentUser.phone));
-      if (currentUser.avatarUrl) setProfileAvatarUrl(currentUser.avatarUrl);
+      setProfileFirstName((currentUser.firstName || '').slice(0, 50));
+      setProfileLastName((currentUser.lastName || '').slice(0, 50));
+      setProfileRut(currentUser.rut ? formatRutWithDotsAndDash(currentUser.rut) : '');
+      setProfileEmail(currentUser.email || '');
+      setProfilePhone(currentUser.phone ? formatChileanMobilePhone(currentUser.phone) : '');
+      setProfileAvatarUrl(currentUser.avatarUrl || '');
     }
   }, [currentUser]);
 
@@ -346,16 +345,17 @@ export const ProfileView: React.FC = () => {
     localStorage.setItem('nolimits_my_published_reviews', JSON.stringify(myPublishedReviews));
   }, [myPublishedReviews]);
 
-  // Cargar órdenes reales y reseñas publicadas del usuario desde MongoDB
+  // Cargar órdenes reales, reseñas y devoluciones del usuario desde MongoDB
   useEffect(() => {
     if (!currentUser || currentUser.role === 'guest') return;
     let isMounted = true;
 
     const loadUserOrdersAndReviews = async () => {
       try {
-        const [ordersRes, reviewsRes] = await Promise.all([
+        const [ordersRes, reviewsRes, returnsRes] = await Promise.all([
           api.get('/orders/my-orders'),
-          api.get('/reviews/my-reviews')
+          api.get('/reviews/my-reviews'),
+          api.get('/returns/my-returns')
         ]);
 
         if (isMounted && ordersRes.data?.success && Array.isArray(ordersRes.data.data)) {
@@ -431,8 +431,62 @@ export const ProfileView: React.FC = () => {
 
           setMyPublishedReviews(mongoReviews);
         }
+
+        if (isMounted && returnsRes.data?.success && Array.isArray(returnsRes.data.data)) {
+          const mongoReturns: ReturnRequest[] = returnsRes.data.data.flatMap((retDoc: any) => {
+            const isShipping =
+              retDoc.deliveryType === 'envio' || retDoc.returnMethod === 'courier_shipping';
+
+            let mappedStatus: ReturnRequest['currentStatus'] =
+              (retDoc.status as ReturnRequest['currentStatus']) || 'Solicitud recibida';
+            if (retDoc.returnReviewStatus === 'rejected') {
+              mappedStatus = 'Rechazada';
+            } else if (retDoc.returnReviewStatus === 'approved' && mappedStatus === 'Solicitud recibida') {
+              mappedStatus = isShipping ? 'Envió a punto' : 'Retiro Presencial';
+            }
+
+            const itemsList =
+              Array.isArray(retDoc.products) && retDoc.products.length > 0
+                ? retDoc.products
+                : [{ id: retDoc._id, name: retDoc.productName || 'Prenda', size: 'Única', image: '' }];
+
+            return itemsList.map((p: any, idx: number) => ({
+              id: `${retDoc._id}_${idx}`,
+              ticketNumber: retDoc.ticketNumber || `DEV-${String(retDoc._id).slice(-4).toUpperCase()}`,
+              orderNumber: retDoc.orderNumber || 'NL-0000',
+              productId: String(p.id || ''),
+              productTitle: p.name || 'Prenda NoLimits',
+              productSize: p.size || 'Única',
+              productImage: p.image || INITIAL_PRODUCTS[0]?.images[0] || '',
+              reason: retDoc.reason || retDoc.returnReason || 'Defecto de fabricación',
+              returnMethod: isShipping ? 'courier_shipping' : 'branch_dropoff',
+              returnCourier: isShipping ? retDoc.returnCourier || retDoc.shippingCourier || 'paket' : undefined,
+              shippingCostClp: Number(retDoc.shippingCostClp) || 0,
+              paidByStore: retDoc.paidByStore !== false,
+              targetBranchId: isShipping ? 'shipping_courier' : retDoc.branchId || 'vina_del_mar',
+              targetBranchName: retDoc.targetBranchName || retDoc.deliveryMethodText || 'Sucursal NoLimits',
+              requestDate: retDoc.createdAt
+                ? new Date(retDoc.createdAt).toLocaleDateString('es-CL', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                  })
+                : 'Reciente',
+              currentStatus: mappedStatus,
+              notes: retDoc.notes || retDoc.description || '',
+              photos: Array.isArray(retDoc.evidencePhotos)
+                ? retDoc.evidencePhotos
+                : Array.isArray(retDoc.referencePhotos)
+                ? retDoc.referencePhotos
+                : [],
+              rejectionReason: retDoc.rejectionReason || undefined
+            }));
+          });
+
+          setReturnRequests(mongoReturns);
+        }
       } catch (err) {
-        console.error('Error cargando órdenes/reseñas desde MongoDB:', err);
+        console.error('Error cargando órdenes/reseñas/devoluciones desde MongoDB:', err);
       }
     };
 
@@ -755,7 +809,7 @@ export const ProfileView: React.FC = () => {
     setAddressSuccessMessage(`✓ Nueva dirección "${finalAlias}" guardada en MongoDB.`);
     setTimeout(() => setAddressSuccessMessage(null), 3500);
   };
- 
+
   // =========================================================================
   // SINCRONIZACIÓN DE PRODUCTOS Y CATÁLOGO ACTUAL CON ÓRDENES Y DEVOLUCIONES
   // =========================================================================
@@ -833,204 +887,12 @@ export const ProfileView: React.FC = () => {
   };
 
   // =========================================================================
-  // MÓDULO DE DEVOLUCIONES (Estados Obligatorios & Horarios de Sucursales)
+  // MÓDULO DE DEVOLUCIONES (CONECTADO A MONGODB + CLOUDINARY)
   // =========================================================================
-  const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>(() => {
-    const currentCatalog = loadAndSyncProductsStock();
-    const syncRetItem = (ret: ReturnRequest): ReturnRequest => {
-      const prod = resolveCatalogProductForOrderItem(ret.productId, ret.productTitle, currentCatalog);
-      return {
-        ...ret,
-        productId: prod.id,
-        productTitle: prod.title,
-        productSize: resolveCatalogSizeForOrderItem(ret.productSize, prod),
-        productImage: prod.images?.[0] || ret.productImage
-      };
-    };
-
-    try {
-      const saved = localStorage.getItem('nolimits_return_requests');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const updated = parsed.map((ret: ReturnRequest) => {
-            let item = { ...ret };
-            if (item.orderNumber === 'NL-8842') {
-              item = {
-                ...item,
-                orderNumber: 'NL-8320',
-                productId: 'prod_vintage_tee_03',
-                productTitle: 'Windows XP Glitch 2000 Graphic Tee',
-                productSize: 'M',
-                productImage: INITIAL_PRODUCTS[2]?.images[0] || 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=300',
-                targetBranchId: 'valparaiso',
-                targetBranchName: 'Sucursal Valparaíso - Puerto Cyber Lab',
-                notes: 'Cliente solicitó cambio alegando daño estético posterior al retiro presencial en sucursal.',
-                rejectionReason: 'La prenda presenta signos de uso evidente tras el retiro en sucursal y la etiqueta original fue removida. De acuerdo con las políticas de devolución de Nolimits, solo se aprueban solicitudes por defectos de fabricación o fallas no informadas previas al uso.'
-              };
-            }
-            if (item.rejectionReason && (item.rejectionReason.includes('Ley') || item.rejectionReason.includes('garantía legal'))) {
-              item.rejectionReason = 'La prenda presenta signos evidentes de uso y la etiqueta original fue desprendida tras el retiro presencial. De acuerdo con las políticas de devolución de Nolimits, solo se aprueban solicitudes por defectos de fabricación o fallas no informadas previas al uso.';
-            }
-            if (item.reason === 'Garantía Legal' || item.reason === 'Drop Insatisfecho' || item.reason === 'Cambio de Talla') {
-              item.reason = 'Defecto de fabricación (Costuras, cierres o confección)';
-            }
-            if (item.currentStatus === 'Envió a punto/sucursal') {
-              item.currentStatus = item.returnMethod === 'courier_shipping' ? 'Envió a punto' : 'Retiro Presencial';
-            }
-            return syncRetItem(item);
-          });
-
-          if (!updated.some(r => r.currentStatus === 'Envió a punto')) {
-            updated.push(
-              syncRetItem({
-                id: 'ret_case_04',
-                ticketNumber: 'DEV-5532',
-                orderNumber: 'NL-9550',
-                productId: 'prod_chaqueta_biker_10',
-                productTitle: 'Chaqueta Biker Cyber-Goth Cuero Vegano con Cierres Y2K',
-                productSize: 'L',
-                productImage: INITIAL_PRODUCTS[9]?.images[0] || 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300',
-                reason: 'Defecto de fabricación (Costuras, cierres o confección)',
-                returnMethod: 'courier_shipping',
-                returnCourier: 'paket',
-                shippingCostClp: 0,
-                paidByStore: true,
-                targetBranchId: 'shipping_courier',
-                targetBranchName: 'Envío Paket Express (Devolución Pagada por Nolimits - $0 CLP)',
-                requestDate: '15 de Octubre 2026',
-                currentStatus: 'Envió a punto',
-                notes: 'Defecto de fábrica en cierre verificado por bodega central. Devolución cubierta por Nolimits vía Paket.'
-              })
-            );
-          }
-
-          if (!updated.some(r => r.currentStatus === 'Retiro Presencial')) {
-            updated.push(
-              syncRetItem({
-                id: 'ret_case_05',
-                ticketNumber: 'DEV-6277',
-                orderNumber: 'NL-9870',
-                productId: 'prod_cyber_hoodie_01',
-                productTitle: 'Cyber-Tribal Overkill Zip Hoodie',
-                productSize: 'M',
-                productImage: INITIAL_PRODUCTS[0]?.images[0] || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=300',
-                reason: 'Defecto de fabricación (Costuras, cierres o confección)',
-                returnMethod: 'branch_dropoff',
-                targetBranchId: 'vina_del_mar',
-                targetBranchName: 'Sucursal Viña del Mar - Mall Marina Studio',
-                requestDate: '15 de Octubre 2026',
-                currentStatus: 'Retiro Presencial',
-                notes: 'Prenda de reemplazo por falla de fábrica reservada en mesón de atención física de sucursal Viña del Mar. Presentar ticket DEV-6277.'
-              })
-            );
-          }
-
-          return updated;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return [
-      {
-        id: 'ret_case_01',
-        ticketNumber: 'DEV-8821',
-        orderNumber: 'NL-6104',
-        productId: 'prod_cartera_holographic_05',
-        productTitle: 'Cartera Y2K Mini Baguette Plateada Mirror',
-        productSize: 'Talla Única',
-        productImage: INITIAL_PRODUCTS[4]?.images[0] || 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=300',
-        reason: 'Falla o detalle en el material no informado antes de la compra',
-        returnMethod: 'branch_dropoff' as const,
-        targetBranchId: 'vina_del_mar',
-        targetBranchName: 'Sucursal Viña del Mar - Mall Marina Studio',
-        requestDate: '12 de Octubre 2026',
-        currentStatus: 'Aprobada' as const,
-        notes: 'Inspección previa de falla no informada aprobada por administración. Próximamente pasará a Retiro Presencial para entrega física en sucursal.'
-      },
-      {
-        id: 'ret_case_02',
-        ticketNumber: 'DEV-9104',
-        orderNumber: 'NL-7319',
-        productId: 'prod_goth_cargo_02',
-        productTitle: 'Gothic Parachute Multipocket Cargo',
-        productSize: '42 (Chile) - 32 (USA/W)',
-        productImage: INITIAL_PRODUCTS[1]?.images[0] || 'https://images.unsplash.com/photo-1517445312882-bc9910d016b7?w=300',
-        reason: 'Defecto de fabricación (Costuras, cierres o confección)',
-        returnMethod: 'courier_shipping' as const,
-        returnCourier: 'paket' as const,
-        shippingCostClp: 0,
-        paidByStore: true,
-        targetBranchId: 'shipping_courier',
-        targetBranchName: 'Envío Paket Express (Devolución Pagada por Nolimits - $0 CLP)',
-        requestDate: '14 de Octubre 2026',
-        currentStatus: 'Revisión de equipo' as const,
-        notes: 'El equipo de control de calidad está evaluando las fotografías del defecto de costura antes de autorizar la devolución por Paket.'
-      },
-      {
-        id: 'ret_case_03',
-        ticketNumber: 'DEV-4019',
-        orderNumber: 'NL-8320',
-        productId: 'prod_vintage_tee_03',
-        productTitle: 'Windows XP Glitch 2000 Graphic Tee',
-        productSize: 'M',
-        productImage: INITIAL_PRODUCTS[2]?.images[0] || 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=300',
-        reason: 'Producto recibido con daño o falla previa al uso',
-        returnMethod: 'branch_dropoff' as const,
-        targetBranchId: 'valparaiso',
-        targetBranchName: 'Sucursal Valparaíso - Puerto Cyber Lab',
-        requestDate: '14 de Octubre 2026',
-        currentStatus: 'Rechazada' as const,
-        notes: 'Cliente solicitó cambio alegando daño estético posterior al retiro en sucursal.',
-        rejectionReason: 'La prenda presenta signos evidentes de uso y la etiqueta original fue desprendida tras el retiro presencial. De acuerdo con las políticas de devolución de Nolimits, solo se aprueban solicitudes por defectos de fabricación o fallas no informadas previas al uso.',
-        rejectionDate: '15 de Octubre 2026',
-        adminInspector: 'Administración de Control de Calidad NoLimits'
-      },
-      {
-        id: 'ret_case_04',
-        ticketNumber: 'DEV-5532',
-        orderNumber: 'NL-9550',
-        productId: 'prod_chaqueta_biker_10',
-        productTitle: 'Chaqueta Biker Cyber-Goth Cuero Vegano con Cierres Y2K',
-        productSize: 'L',
-        productImage: INITIAL_PRODUCTS[9]?.images[0] || 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300',
-        reason: 'Defecto de fabricación (Costuras, cierres o confección)',
-        returnMethod: 'courier_shipping' as const,
-        returnCourier: 'paket' as const,
-        shippingCostClp: 0,
-        paidByStore: true,
-        targetBranchId: 'shipping_courier',
-        targetBranchName: 'Envío Paket Express (Devolución Pagada por Nolimits - $0 CLP)',
-        requestDate: '15 de Octubre 2026',
-        currentStatus: 'Envió a punto' as const,
-        notes: 'Defecto de fabricación en cierre verificado por bodega central. El courier Paket retirará la prenda sin costo para el cliente.'
-      },
-      {
-        id: 'ret_case_05',
-        ticketNumber: 'DEV-6277',
-        orderNumber: 'NL-9870',
-        productId: 'prod_cyber_hoodie_01',
-        productTitle: 'Cyber-Tribal Overkill Zip Hoodie',
-        productSize: 'M',
-        productImage: INITIAL_PRODUCTS[0]?.images[0] || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=300',
-        reason: 'Defecto de fabricación (Costuras, cierres o confección)',
-        returnMethod: 'branch_dropoff' as const,
-        targetBranchId: 'vina_del_mar',
-        targetBranchName: 'Sucursal Viña del Mar - Mall Marina Studio',
-        requestDate: '15 de Octubre 2026',
-        currentStatus: 'Retiro Presencial' as const,
-        notes: 'Prenda de reemplazo por falla de fábrica reservada en mesón de atención física de sucursal Viña del Mar. Presentar ticket DEV-6277.'
-      }
-    ].map(syncRetItem);
-  });
+  const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
 
   // Filtro de devoluciones: Todas, En Proceso, Aprobadas, Rechazadas
   const [returnsFilter, setReturnsFilter] = useState<'all' | 'in_progress' | 'approved' | 'rejected'>('all');
-
-  useEffect(() => {
-    localStorage.setItem('nolimits_return_requests', JSON.stringify(returnRequests));
-  }, [returnRequests]);
 
   const [returnSuccessMessage, setReturnSuccessMessage] = useState<string | null>(null);
   const [isNewReturnModalOpen, setIsNewReturnModalOpen] = useState(false);
@@ -1046,6 +908,7 @@ export const ProfileView: React.FC = () => {
   const [returnShippingCommune, setReturnShippingCommune] = useState<string>(() => getRegisteredClientShippingOrigin().commune);
   const [selectedReturnNotes, setSelectedReturnNotes] = useState<string>('');
   const [returnPhotos, setReturnPhotos] = useState<string[]>([]);
+  const [returnPhotoFiles, setReturnPhotoFiles] = useState<File[]>([]);
   const [returnTargetOrder, setReturnTargetOrder] = useState<PurchaseOrder | null>(null);
   const [, setReturnTargetItem] = useState<{ productId: string; title: string; size: string; color: string; image: string; price: number } | null>(null);
   const [rejectionModalReturn, setRejectionModalReturn] = useState<ReturnRequest | null>(null);
@@ -1098,6 +961,7 @@ export const ProfileView: React.FC = () => {
     setReturnShippingCommune(clientOrigin.commune);
     setSelectedReturnNotes('');
     setReturnPhotos([]);
+    setReturnPhotoFiles([]);
 
     if (order.items.length > 1) {
       const firstEligible = eligibleItems[0];
@@ -1213,6 +1077,8 @@ export const ProfileView: React.FC = () => {
     }
 
     const filesToRead = files.slice(0, remainingSlots);
+    setReturnPhotoFiles((prev) => [...prev, ...filesToRead].slice(0, 10));
+
     filesToRead.forEach(file => {
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -1229,156 +1095,163 @@ export const ProfileView: React.FC = () => {
 
   const handleRemoveReturnPhoto = (index: number) => {
     setReturnPhotos(prev => prev.filter((_, i) => i !== index));
+    setReturnPhotoFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   /**
-   * Crear nueva solicitud de devolución para una o varias prendas seleccionadas
+   * Crear nueva solicitud de devolución en MongoDB + Cloudinary
    */
-  const handleCreateReturnSubmit = (e: React.FormEvent) => {
+  const handleCreateReturnSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const itemsToReturn = selectedReturnItems.length > 0
-      ? selectedReturnItems
-      : selectedReturnItem ? [selectedReturnItem] : [];
+    const itemsToReturn =
+      selectedReturnItems.length > 0
+        ? selectedReturnItems
+        : selectedReturnItem
+        ? [selectedReturnItem]
+        : [];
 
     if (!selectedReturnOrder || itemsToReturn.length === 0) {
       alert('Por favor selecciona al menos una prenda que deseas devolver.');
       return;
     }
 
-    const orderObj = orders.find(o => o.orderNumber === selectedReturnOrder);
-    const branchObj = liveBranchSchedules.find(b => b.id === selectedReturnBranch) || liveBranchSchedules[0];
+    if (returnPhotoFiles.length === 0) {
+      alert('Debes adjuntar al menos 1 fotografía de respaldo del producto para ingresar la devolución.');
+      return;
+    }
+
+    const orderObj = orders.find((o) => o.orderNumber === selectedReturnOrder);
+    const branchObj =
+      liveBranchSchedules.find((b) => b.id === selectedReturnBranch) || liveBranchSchedules[0];
     const shippingCalc = getReturnShippingCalculation();
 
-    const targetBranchName = selectedReturnMethod === 'shipping'
-      ? selectedReturnCourier === 'paket'
-        ? `Envío Paket Express (${returnShippingCommune} · Devolución Pagada por Nolimits: $0 CLP)`
-        : `Envío ${shippingCalc.selectedCourierLabel} (${returnShippingCommune} · Envío a cargo del cliente: $${shippingCalc.selectedCostForCustomer.toLocaleString('es-CL')} CLP)`
-      : branchObj.name;
+    const targetBranchName =
+      selectedReturnMethod === 'shipping'
+        ? `Envío Paket Express (${returnShippingCommune} · Devolución Pagada por NoLimits: $0 CLP)`
+        : branchObj.name;
 
-    const randomTicketNumber = `DEV-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const newCases: ReturnRequest[] = itemsToReturn.map((prodId, idx) => {
-      const itemObj = orderObj?.items.find(it => it.productId === prodId);
+    const productsPayload = itemsToReturn.map((prodId) => {
+      const itemObj = orderObj?.items.find((it) => it.productId === prodId);
       const catalogProd = resolveCatalogProductForOrderItem(prodId, itemObj?.title, catalogProducts);
       return {
-        id: `ret_${Date.now()}_${idx}`,
-        ticketNumber: itemsToReturn.length > 1 ? `${randomTicketNumber}-${idx + 1}` : randomTicketNumber,
-        orderNumber: selectedReturnOrder,
-        productId: catalogProd.id,
-        productTitle: catalogProd.title,
-        productSize: itemObj?.size || resolveCatalogSizeForOrderItem('M', catalogProd),
-        productImage: catalogProd.images?.[0] || itemObj?.image || INITIAL_PRODUCTS[0]?.images[0],
-        reason: selectedReturnReason,
-        returnMethod: selectedReturnMethod === 'shipping' ? 'courier_shipping' : 'branch_dropoff',
-        returnCourier: selectedReturnMethod === 'shipping' ? selectedReturnCourier : undefined,
-        shippingCostClp: selectedReturnMethod === 'shipping' ? shippingCalc.selectedCostForCustomer : 0,
-        paidByStore: selectedReturnMethod === 'shipping' ? shippingCalc.isPaidByStore : true,
-        targetBranchId: selectedReturnMethod === 'shipping' ? 'shipping_courier' : branchObj.id,
-        targetBranchName: targetBranchName,
-        requestDate: new Date().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' }),
-        currentStatus: 'Solicitud recibida',
-        notes: selectedReturnNotes.trim() || 'Solicitud por falla o defecto ingresada por el cliente. Esperando evaluación del equipo.',
-        photos: returnPhotos
+        id: itemObj?.productId || catalogProd.id,
+        name: itemObj?.title || catalogProd.title,
+        size: itemObj?.size || 'Única',
+        quantity: itemObj?.quantity || 1,
+        price: itemObj?.price || catalogProd.price,
+        sku: catalogProd.sku || 'NL-SKU',
+        image: itemObj?.image || catalogProd.images?.[0] || ''
       };
     });
 
-    setReturnRequests(prev => [...newCases, ...prev]);
+    const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
+    const shippingAddressObj = {
+      region: returnShippingRegion,
+      comuna: returnShippingCommune,
+      street: defaultAddr?.street || '',
+      number: defaultAddr?.number || '',
+      apartment: defaultAddr?.apartment || '',
+      postalCode: defaultAddr?.postalCode || '',
+      notes: defaultAddr?.notes || ''
+    };
 
-    // Sincronizar solicitud de devolución con "Notificaciones de Interés" del Super Administrador
     try {
-      const ALERTS_STORAGE_KEY = 'nl_admin_system_alerts_v7';
-      const rawAlerts = localStorage.getItem(ALERTS_STORAGE_KEY);
-      const existingAlerts = rawAlerts ? JSON.parse(rawAlerts) : [];
-      if (Array.isArray(existingAlerts)) {
-        const alertProducts = itemsToReturn.map((prodId) => {
-          const itemObj = orderObj?.items.find(it => it.productId === prodId);
-          const catalogProd = resolveCatalogProductForOrderItem(prodId, itemObj?.title, catalogProducts);
-          const imgs = catalogProd.images?.length
-            ? catalogProd.images
-            : [itemObj?.image || INITIAL_PRODUCTS[0]?.images[0]];
-          return {
-            id: catalogProd.id,
-            title: catalogProd.title,
-            size: itemObj?.size || resolveCatalogSizeForOrderItem('M', catalogProd),
-            quantity: itemObj?.quantity || 1,
-            priceClp: itemObj?.price || catalogProd.price,
-            image: imgs[0],
-            images: imgs,
-            returnPhotoEvidence: returnPhotos.length > 0 ? returnPhotos[0] : imgs[0],
-            returnEvidenceGallery: returnPhotos.length > 0 ? returnPhotos : imgs,
-            description:
-              selectedReturnNotes.trim() ||
-              `Solicitud de devolución ingresada por el cliente. Motivo: ${selectedReturnReason}.`
-          };
-        });
-
-        const totalReturnValue = alertProducts.reduce(
-          (acc, p) => acc + (p.priceClp || 0) * (p.quantity || 1),
-          0
-        );
-
-        const newAdminReturnAlert = {
-          id: `alert_dev_${Date.now()}`,
-          category: 'devolucion',
-          severity: 'warning',
-          title: `Solicitud de Devolución #${randomTicketNumber} — ${alertProducts[0]?.title || 'Prenda'}`,
-          description:
-            selectedReturnMethod === 'shipping'
-              ? selectedReturnCourier === 'paket'
-                ? `Cliente solicita devolución por ${selectedReturnReason.toLowerCase()}. Agencia escogida: Paket Express (${returnShippingCommune}, ${returnShippingRegion}). Al cliente le sale $0 CLP porque el envío lo paga el dueño ($${shippingCalc.paketReferenceCarrierCost.toLocaleString('es-CL')} CLP).`
-                : `Cliente solicita devolución por ${selectedReturnReason.toLowerCase()}. Agencia escogida: ${shippingCalc.selectedCourierLabel} (${returnShippingCommune}, ${returnShippingRegion}). Envío a pagar por el usuario: $${shippingCalc.selectedCostForCustomer.toLocaleString('es-CL')} CLP.`
-              : `Cliente solicita devolución presencial en ${branchObj.name}. Motivo: ${selectedReturnReason}.`,
-          branchId: branchObj.id,
-          branchName: branchObj.name,
-          timestamp: 'Hace instantes',
-          read: false,
-          resolved: false,
-          metricBadge: `${itemsToReturn.length} ${itemsToReturn.length === 1 ? 'PRENDA' : 'PRENDAS'} · $${totalReturnValue.toLocaleString('es-CL')} CLP`,
-          actionLabel: 'Revisión de Equipo',
-          orderNumber: selectedReturnOrder,
-          customerName:
-            currentUser?.name ||
-            `${profileFirstName} ${profileLastName}`.trim() ||
-            'Valeria Neo-Goth',
-          customerRut: profileRut || currentUser?.rut || '20.418.932-5',
-          customerEmail: profileEmail || currentUser?.email || 'valeria.k@gmail.com',
-          customerPhone: profilePhone || currentUser?.phone || '+56 9 8412 6630',
-          deliveryType: selectedReturnMethod === 'shipping' ? 'envio' : 'retiro',
-          shippingAddress: `${(addresses.find(a => a.isDefault) || addresses[0])?.street || 'Av. Libertad 742, Depto 904'}, ${returnShippingCommune}, ${returnShippingRegion}`,
-          returnReason: selectedReturnReason,
-          returnCourier: selectedReturnMethod === 'shipping' ? selectedReturnCourier : undefined,
-          returnShippingCostCustomerClp:
-            selectedReturnMethod === 'shipping' ? shippingCalc.selectedCostForCustomer : 0,
-          returnShippingCostOwnerClp:
-            selectedReturnMethod === 'shipping' && selectedReturnCourier === 'paket'
-              ? shippingCalc.paketReferenceCarrierCost
-              : 0,
-          returnInspectionStatus: 'pending',
-          products: alertProducts
-        };
-
-        localStorage.setItem(
-          ALERTS_STORAGE_KEY,
-          JSON.stringify([newAdminReturnAlert, ...existingAlerts])
-        );
+      const formData = new FormData();
+      formData.append('orderNumber', selectedReturnOrder);
+      formData.append('reason', selectedReturnReason);
+      formData.append(
+        'returnMethod',
+        selectedReturnMethod === 'shipping' ? 'courier_shipping' : 'branch_dropoff'
+      );
+      if (selectedReturnMethod === 'shipping') {
+        formData.append('returnCourier', selectedReturnCourier);
       }
-    } catch {
-      // ignore storage errors
-    }
+      formData.append(
+        'shippingCostClp',
+        String(selectedReturnMethod === 'shipping' ? shippingCalc.selectedCostForCustomer : 0)
+      );
+      formData.append(
+        'paidByStore',
+        String(selectedReturnMethod === 'shipping' ? shippingCalc.isPaidByStore : true)
+      );
+      formData.append(
+        'targetBranchId',
+        selectedReturnMethod === 'shipping' ? 'shipping_courier' : branchObj.id
+      );
+      formData.append('targetBranchName', targetBranchName);
+      formData.append(
+        'notes',
+        selectedReturnNotes.trim() ||
+          'Solicitud por falla o defecto ingresada por el cliente. Esperando evaluación del equipo.'
+      );
+      formData.append(
+        'customerName',
+        currentUser?.name || `${profileFirstName} ${profileLastName}`.trim()
+      );
+      formData.append('customerRut', profileRut || currentUser?.rut || '');
+      formData.append('customerPhone', profilePhone || currentUser?.phone || '');
+      formData.append('shippingAddress', JSON.stringify(shippingAddressObj));
+      formData.append('products', JSON.stringify(productsPayload));
 
-    setIsNewReturnModalOpen(false);
-    setSelectedReturnNotes('');
-    setReturnPhotos([]);
-    setSelectedReturnItems([]);
-    setReturnSuccessMessage(
-      itemsToReturn.length > 1
-        ? `✓ Solicitud ${randomTicketNumber} (${itemsToReturn.length} prendas) ingresada con éxito. Redirigiendo a Devoluciones...`
-        : `✓ Solicitud ${randomTicketNumber} ingresada con éxito. Redirigiendo a Devoluciones...`
-    );
-    setTimeout(() => {
-      setReturnSuccessMessage(null);
-      setActiveTab('returns');
-    }, 1200);
+      returnPhotoFiles.forEach((file) => {
+        formData.append('photos', file);
+      });
+
+      const res = await api.post('/returns', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const createdAlert = res.data?.data;
+      const ticketNumber =
+        createdAlert?.ticketNumber || `DEV-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const newCases: ReturnRequest[] = productsPayload.map((p, idx) => ({
+        id: `${createdAlert?._id || Date.now()}_${idx}`,
+        ticketNumber,
+        orderNumber: selectedReturnOrder,
+        productId: p.id,
+        productTitle: p.name,
+        productSize: p.size,
+        productImage: p.image,
+        reason: selectedReturnReason,
+        returnMethod: selectedReturnMethod === 'shipping' ? 'courier_shipping' : 'branch_dropoff',
+        returnCourier: selectedReturnMethod === 'shipping' ? selectedReturnCourier : undefined,
+        shippingCostClp:
+          selectedReturnMethod === 'shipping' ? shippingCalc.selectedCostForCustomer : 0,
+        paidByStore: selectedReturnMethod === 'shipping' ? shippingCalc.isPaidByStore : true,
+        targetBranchId: selectedReturnMethod === 'shipping' ? 'shipping_courier' : branchObj.id,
+        targetBranchName,
+        requestDate: new Date().toLocaleDateString('es-CL', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        }),
+        currentStatus: 'Solicitud recibida',
+        notes: selectedReturnNotes.trim() || 'Solicitud ingresada por el cliente.',
+        photos: Array.isArray(createdAlert?.evidencePhotos)
+          ? createdAlert.evidencePhotos
+          : returnPhotos
+      }));
+
+      setReturnRequests((prev) => [...newCases, ...prev]);
+      setIsNewReturnModalOpen(false);
+      setSelectedReturnNotes('');
+      setReturnPhotos([]);
+      setReturnPhotoFiles([]);
+      setSelectedReturnItems([]);
+      setReturnSuccessMessage(
+        `✓ Solicitud ${ticketNumber} guardada en MongoDB y enviada al equipo. Redirigiendo a Devoluciones...`
+      );
+      setTimeout(() => {
+        setReturnSuccessMessage(null);
+        setActiveTab('returns');
+      }, 1200);
+    } catch (error: any) {
+      console.error('Error enviando devolución a MongoDB:', error);
+      alert(
+        `⚠ ${error.response?.data?.message || 'No se pudo registrar la devolución en el servidor.'}`
+      );
+    }
   };
 
   const getReturnSteps = (ret: ReturnRequest) => {
@@ -1762,19 +1635,6 @@ export const ProfileView: React.FC = () => {
 
     setOrders(prev => prev.map(ord => syncOrderWithCurrentCatalog(ord, catalogProducts)));
 
-    setReturnRequests(prev =>
-      prev.map(ret => {
-        const prod = resolveCatalogProductForOrderItem(ret.productId, ret.productTitle, catalogProducts);
-        return {
-          ...ret,
-          productId: prod.id,
-          productTitle: prod.title,
-          productSize: resolveCatalogSizeForOrderItem(ret.productSize, prod),
-          productImage: prod.images?.[0] || ret.productImage
-        };
-      })
-    );
-
     setMyPublishedReviews(prev =>
       prev.map(rev => {
         const prod = resolveCatalogProductForOrderItem(rev.productId, rev.productTitle, catalogProducts);
@@ -1875,7 +1735,7 @@ const handleConfirmRedeem = async () => {
     setCopiedCouponCode(code);
     setTimeout(() => setCopiedCouponCode(null), 2500);
   };
- 
+
   const handleOpenReviewModal = (
     item: { productId: string; title: string; image: string },
     orderNumber: string
