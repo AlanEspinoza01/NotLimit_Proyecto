@@ -1,0 +1,97 @@
+/* Pantalla de carga global: clases NL aisladas para no alterar los estilos del sitio. */
+.nl-spinner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #000;
+  color: #fff;
+  padding: 24px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+
+.nl-spinner-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 340px);
+  transform: translateY(-8px);
+}
+
+.nl-spinner-logo {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 19px;
+}
+
+.nl-spinner-pane {
+  display: block;
+  width: clamp(30px, 9vw, 40px);
+  height: clamp(30px, 9vw, 40px);
+  border-radius: 4px;
+  animation: nl-spinner-pane-pulse 1s ease-in-out infinite alternate;
+}
+.nl-spinner-red    { background: #e74c3c; animation-delay: 0s; }
+.nl-spinner-green  { background: #2ecc71; animation-delay: .2s; }
+.nl-spinner-blue   { background: #3498db; animation-delay: .4s; }
+.nl-spinner-yellow { background: #f1c40f; animation-delay: .6s; }
+
+.nl-spinner-brand {
+  display: inline-block;
+  max-width: 100%;
+  color: #fff;
+  font-size: clamp(17px, 4.5vw, 20px);
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  line-height: 1.4;
+  margin-bottom: 24px;
+  text-align: center;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.nl-spinner-brand span { color: #3a9bd5; }
+.nl-spinner-brand:hover { text-decoration: underline; }
+.nl-spinner-brand:focus-visible { outline: 2px solid #7cc8ff; outline-offset: 5px; }
+
+.nl-spinner-track {
+  position: relative;
+  width: min(200px, 78vw);
+  height: 14px;
+  border: 1px solid #555;
+  border-radius: 2px;
+  background: #111;
+  overflow: hidden;
+}
+
+.nl-spinner-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 60px;
+  max-width: 40%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #1565c0, #42a5f5);
+  animation: nl-spinner-slide 1s linear infinite;
+}
+.nl-spinner-description {
+  margin-top: 13px;
+  color: #cbd3e5;
+  font-size: 11px;
+  letter-spacing: .8px;
+}
+
+@keyframes nl-spinner-pane-pulse { from { opacity: .7; } to { opacity: 1; } }
+@keyframes nl-spinner-slide {
+  from { left: -60px; }
+  to   { left: 100%; }
+}
+
+/* Se conserva la barra fija y la disposición responsiva de NoLimits. */
+@media (prefers-reduced-motion: reduce) {
+  .nl-spinner-pane { animation: none; }
+  .nl-spinner-progress { animation: none; left: 35%; }
+}

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { beginGlobalLoading } from '../components/spinner/loadingStore';
 
 // Usamos la variable de entorno de Vite o el puerto 5000 por defecto para desarrollo local
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -12,10 +13,32 @@ export const api = axios.create({
   },
 });
 
+// Registro compartido: cada petición debe finalizar una sola vez, incluso si responde con error.
+const loadingRequests = new WeakMap<object, () => void>();
+
+const finishRequestLoading = (config: object | undefined): void => {
+  if (!config) return;
+  const finish = loadingRequests.get(config);
+  if (!finish) return;
+  loadingRequests.delete(config);
+  finish();
+};
+
+// Las vistas usan este cliente para cargar información. No alteramos datos ni cabeceras.
+api.interceptors.request.use((config) => {
+  loadingRequests.set(config, beginGlobalLoading());
+  return config;
+});
+
 // (Opcional) Interceptor de respuestas para manejar errores globales (como el 401 y 423)
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    finishRequestLoading(response.config);
+    return response;
+  },
   (error) => {
+    // Cerrar también al recibir 401, 403, 500, abortos y fallas de red.
+    if (axios.isAxiosError(error)) finishRequestLoading(error.config);
     // Si la sesión expira (401) o la cuenta se bloquea (423), puedes manejarlo aquí globalmente
     if (error.response?.status === 401) {
       console.warn('Sesión expirada o no autorizada');

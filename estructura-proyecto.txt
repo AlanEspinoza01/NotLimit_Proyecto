@@ -2,6 +2,11 @@ NotLimit_Proyecto/
 ├── .git/ [omitida]
 ├── backend/
 │   ├── dist/ [omitida]
+│   ├── docs/
+│   │   ├── 01_INTEGRACION_WEBPAY.md
+│   │   ├── 02_PRUEBAS_Y_VALIDACION.md
+│   │   ├── 03_REGISTRO_DE_ERRORES.md
+│   │   └── README.md
 │   ├── node_modules/ [omitida]
 │   ├── scripts/
 │   │   ├── couponBridge.cjs

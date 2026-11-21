@@ -13,6 +13,7 @@ import { AdminNotificationProvider } from './context/AdminNotificationContext';
 import { TopNavBar } from './components/layout/TopNavBar';
 import { OSDesktopTaskbar } from './components/layout/OSDesktopTaskbar';
 import { AppRoutes } from './routes/AppRoutes';
+import { GlobalSpinnerController } from './components/spinner/GlobalSpinner';
 import {
   loadCustomBackgroundConfig,
   CustomBackgroundConfig
@@ -75,6 +76,8 @@ export default function App() {
 
                 {/* Barra de Tareas Inferior Windows XP Luna Blue con Menú de Expansión Corporativo */}
                 <OSDesktopTaskbar />
+                {/* Carga global de sesión, rutas y solicitudes de datos. */}
+                <GlobalSpinnerController />
               </div>
             </AdminNotificationProvider>
           </WishlistProvider>

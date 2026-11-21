@@ -3,6 +3,8 @@
  * Conectado al Backend Express.js / Node.js + MongoDB (nolimits_db)
  */
 
+import { beginGlobalLoading } from '../components/spinner/loadingStore';
+
 import {
   Product,
   Order,
@@ -40,6 +42,8 @@ class ApiClient {
    * intenta http://localhost:5000/api directamente).
    */
   private async fetchBackend<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const finishLoading = beginGlobalLoading();
+    try {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
@@ -81,6 +85,10 @@ class ApiClient {
     }
 
     return data as T;
+    } finally {
+      // La carga termina aunque el servidor falle o se active el reintento local.
+      finishLoading();
+    }
   }
 
   // =========================================================================
