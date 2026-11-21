@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Product } from '../types';
 import { useAuth } from './AuthContext';
-import { INITIAL_PRODUCTS } from '../services/mockData';
+import api from '../api/axios';
 
 interface WishlistContextType {
   wishlist: Product[];
@@ -16,89 +16,107 @@ interface WishlistContextType {
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
+const normalizeBackendProduct = (p: any): Product => ({
+  ...p,
+  id: String(p._id || p.id),
+  title: p.title || p.name || 'Prenda NoLimits',
+  images: Array.isArray(p.images) ? p.images : [],
+  sizes: Array.isArray(p.sizes) ? p.sizes : [],
+  colors: Array.isArray(p.colors) ? p.colors : [],
+  price: Number(p.price) || 0,
+  salePrice: p.salePrice !== undefined && p.salePrice !== null ? Number(p.salePrice) : undefined,
+});
+
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, isAuthenticated } = useAuth();
+  const { currentUser, isAuthenticated, updateProfile } = useAuth();
+  const [wishlist, setWishlist] = useState<Product[]>([]);
 
-  // Clave de almacenamiento por usuario (o sesión registrada)
-  const storageKey = currentUser?.id && currentUser.role !== 'guest'
-    ? `nolimits_wishlist_${currentUser.id}`
-    : 'nolimits_wishlist_shared';
+  // Sincronizar favoritos reales desde MongoDB al iniciar sesión o cambiar de usuario
+  useEffect(() => {
+    if (!currentUser || currentUser.role === 'guest') {
+      setWishlist([]);
+      return;
+    }
 
-  const [wishlist, setWishlist] = useState<Product[]>(() => {
-    try {
-      // Si el usuario es registrado, verificar su almacenamiento local
-      if (currentUser && currentUser.role !== 'guest') {
-        const key = `nolimits_wishlist_${currentUser.id}`;
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) return parsed;
-        }
-        // Semilla inicial amigable de 1 producto demo si es usuario registrado nuevo
-        return [INITIAL_PRODUCTS[0]];
+    const mongoIds: string[] = Array.isArray((currentUser as any).wishlistProductIds)
+      ? (currentUser as any).wishlistProductIds.map(String)
+      : [];
+
+    if (mongoIds.length === 0) {
+      setWishlist([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadWishlistProducts = async () => {
+      try {
+        const res = await api.get('/products');
+        const rawList = Array.isArray(res.data?.data)
+          ? res.data.data
+          : Array.isArray(res.data)
+          ? res.data
+          : [];
+
+        if (!isMounted) return;
+
+        const idSet = new Set(mongoIds);
+        const matchedProducts: Product[] = rawList
+          .map(normalizeBackendProduct)
+          .filter((prod: Product) => idSet.has(prod.id));
+
+        setWishlist(matchedProducts);
+      } catch (error) {
+        console.error('Error cargando productos de la Lista de Deseos desde MongoDB:', error);
       }
+    };
+
+    loadWishlistProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id, currentUser?.role]);
+
+  // Helper para guardar el array de IDs en MongoDB y caché local
+  const syncWishlistToMongo = (nextList: Product[]) => {
+    if (!currentUser || currentUser.role === 'guest') return;
+    const nextIds = nextList.map((p) => p.id);
+    try {
+      localStorage.setItem(`nolimits_wishlist_${currentUser.id}`, JSON.stringify(nextList));
     } catch {
       // ignore
     }
-    return [];
-  });
-
-  // Sincronizar cuando cambia el usuario autenticado
-  useEffect(() => {
-    try {
-      if (currentUser && currentUser.role !== 'guest') {
-        const key = `nolimits_wishlist_${currentUser.id}`;
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          setWishlist(JSON.parse(saved));
-        } else {
-          // Si no tiene nada guardado, sembrar 1 producto demo para que explore
-          const seed = [INITIAL_PRODUCTS[0]];
-          setWishlist(seed);
-          localStorage.setItem(key, JSON.stringify(seed));
-        }
-      } else {
-        // Invitado no tiene lista persistida hasta registrarse
-        setWishlist([]);
-      }
-    } catch {
-      setWishlist([]);
-    }
-  }, [currentUser?.id, currentUser?.role]);
-
-  // Persistir cambios en localStorage para usuarios registrados
-  useEffect(() => {
-    if (currentUser && currentUser.role !== 'guest') {
-      try {
-        const key = `nolimits_wishlist_${currentUser.id}`;
-        localStorage.setItem(key, JSON.stringify(wishlist));
-      } catch {
-        // ignore
-      }
-    }
-  }, [wishlist, currentUser?.id, currentUser?.role]);
+    updateProfile({ wishlistProductIds: nextIds } as any);
+  };
 
   const isInWishlist = (productId: string): boolean => {
     return wishlist.some((item) => item.id === productId);
   };
 
   const addToWishlist = (product: Product): { success: boolean; requiresAuth: boolean } => {
-    if (!isAuthenticated || currentUser.role === 'guest') {
+    if (!isAuthenticated || !currentUser || currentUser.role === 'guest') {
       return { success: false, requiresAuth: true };
     }
 
     if (!isInWishlist(product.id)) {
-      setWishlist((prev) => [...prev, product]);
+      const nextList = [...wishlist, product];
+      setWishlist(nextList);
+      syncWishlistToMongo(nextList);
     }
     return { success: true, requiresAuth: false };
   };
 
   const removeFromWishlist = (productId: string) => {
-    setWishlist((prev) => prev.filter((item) => item.id !== productId));
+    const nextList = wishlist.filter((item) => item.id !== productId);
+    setWishlist(nextList);
+    syncWishlistToMongo(nextList);
   };
 
-  const toggleWishlist = (product: Product): { success: boolean; isAdded: boolean; requiresAuth: boolean } => {
-    if (!isAuthenticated || currentUser.role === 'guest') {
+  const toggleWishlist = (
+    product: Product
+  ): { success: boolean; isAdded: boolean; requiresAuth: boolean } => {
+    if (!isAuthenticated || !currentUser || currentUser.role === 'guest') {
       return { success: false, isAdded: false, requiresAuth: true };
     }
 
@@ -106,13 +124,16 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       removeFromWishlist(product.id);
       return { success: true, isAdded: false, requiresAuth: false };
     } else {
-      setWishlist((prev) => [...prev, product]);
+      const nextList = [...wishlist, product];
+      setWishlist(nextList);
+      syncWishlistToMongo(nextList);
       return { success: true, isAdded: true, requiresAuth: false };
     }
   };
 
   const clearWishlist = () => {
     setWishlist([]);
+    syncWishlistToMongo([]);
   };
 
   return (

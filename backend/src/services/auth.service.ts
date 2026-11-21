@@ -552,6 +552,11 @@ export const updateUserProfileService = async (
     updateFields.lastPointsReason = String(data.lastPointsReason);
   if (Array.isArray(data.addresses)) updateFields.addresses = data.addresses;
   if (Array.isArray(data.tags)) updateFields.tags = data.tags;
+  if (Array.isArray(data.wishlistProductIds)) {
+    updateFields.wishlistProductIds = data.wishlistProductIds
+      .filter((id: any) => mongoose.Types.ObjectId.isValid(String(id)))
+      .map((id: any) => new mongoose.Types.ObjectId(String(id)));
+  }
 
   const updated = await UserModel.findByIdAndUpdate(
     userId,
@@ -565,3 +570,4 @@ export const updateUserProfileService = async (
 
   return serializeUser(updated);
 };
+ 

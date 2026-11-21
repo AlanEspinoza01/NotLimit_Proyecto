@@ -62,22 +62,24 @@ export const ProductDetailView: React.FC = () => {
   }, [id]);
 
   const foundProduct = useMemo<Product>(() => {
+    const safeId = (id || '').toLowerCase();
+
     if (mongoProductList.length > 0) {
       const fromMongo = mongoProductList.find(
-        (p) => p.id === id || (p.sku && p.sku.toLowerCase() === (id || '').toLowerCase())
+        (p) => p.id === id || (p.sku && p.sku.toLowerCase() === safeId)
       );
       if (fromMongo) return fromMongo;
     }
     if (
       passedProduct &&
-      (passedProduct.id === id || passedProduct.sku.toLowerCase() === (id || '').toLowerCase())
+      (passedProduct.id === id || (passedProduct.sku && passedProduct.sku.toLowerCase() === safeId))
     ) {
       return normalizeProductToCurrentTaxonomy(passedProduct);
     }
     const allProducts = loadAndSyncProductsStock();
     const rawFound =
-      allProducts.find((p) => p.id === id || p.sku.toLowerCase() === (id || '').toLowerCase()) ||
-      INITIAL_PRODUCTS.find((p) => p.id === id || p.sku.toLowerCase() === (id || '').toLowerCase()) ||
+      allProducts.find((p) => p.id === id || (p.sku && p.sku.toLowerCase() === safeId)) ||
+      INITIAL_PRODUCTS.find((p) => p.id === id || (p.sku && p.sku.toLowerCase() === safeId)) ||
       mongoProductList[0] ||
       allProducts[0] ||
       INITIAL_PRODUCTS[0];

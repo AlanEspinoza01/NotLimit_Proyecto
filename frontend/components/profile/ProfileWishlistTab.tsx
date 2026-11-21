@@ -8,7 +8,7 @@ interface ProfileWishlistTabProps {
   wishlist: Product[];
   removeFromWishlist: (productId: string) => void;
 }
-
+ 
 export const ProfileWishlistTab: React.FC<ProfileWishlistTabProps> = ({
   wishlist,
   removeFromWishlist
