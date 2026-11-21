@@ -392,7 +392,8 @@ export const ProfileView: React.FC = () => {
                 image:
                   matchedProd?.images?.[0] ||
                   INITIAL_PRODUCTS[0]?.images[0] ||
-                  ''
+                  '',
+                isReviewed: Boolean(it.isReviewed)
               };
             })
           }));
@@ -428,7 +429,6 @@ export const ProfileView: React.FC = () => {
           }));
 
           setMyPublishedReviews(mongoReviews);
-          setReviewedProductIds(mongoReviews.map((rev) => rev.productId));
         }
       } catch (err) {
         console.error('Error cargando órdenes/reseñas desde MongoDB:', err);
@@ -1804,7 +1804,11 @@ export const ProfileView: React.FC = () => {
         branchName: o.branchName
       }))
     )
-    .filter(item => !reviewedProductIds.includes(item.productId));
+    .filter((item: any) => {
+      if (item.isReviewed) return false;
+      const compositeKey = `${item.orderNumber}_${item.productId}`;
+      return !reviewedProductIds.includes(compositeKey);
+    });
 
   const filteredReturnRequests = returnRequests.filter(ret => {
     if (returnsFilter === 'in_progress') {
@@ -1979,9 +1983,26 @@ export const ProfileView: React.FC = () => {
 
       addLoyaltyPoints(earnedPoints);
 
-      const updatedReviewed = [...reviewedProductIds, reviewModalProduct.productId];
+      const compositeKey = `${reviewModalProduct.orderNumber}_${reviewModalProduct.productId}`;
+      const updatedReviewed = [...reviewedProductIds, compositeKey];
       setReviewedProductIds(updatedReviewed);
       localStorage.setItem('nolimits_user_reviewed_items', JSON.stringify(updatedReviewed));
+
+      // Marcar solo el producto de ESTA orden como reseñado en el estado local
+      setOrders((prev) =>
+        prev.map((ord) =>
+          ord.orderNumber === reviewModalProduct.orderNumber
+            ? {
+                ...ord,
+                items: ord.items.map((it) =>
+                  it.productId === reviewModalProduct.productId
+                    ? ({ ...it, isReviewed: true } as any)
+                    : it
+                )
+              }
+            : ord
+        )
+      );
 
       const newMyReview: UserPublishedReview = {
         id: String(savedReview?._id || `my_rev_${Date.now()}`),

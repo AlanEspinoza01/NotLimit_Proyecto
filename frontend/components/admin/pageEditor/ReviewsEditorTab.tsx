@@ -5,7 +5,9 @@ import {
   Trash2,
   FileText,
   ShieldAlert,
-  ShoppingBag
+  ShoppingBag,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Review } from '../../../types';
 import {
@@ -20,6 +22,7 @@ interface ReviewsEditorTabProps {
   filteredReviews: Review[];
   setSelectedReviewDetail: (rev: Review | null) => void;
   handleOpenAddReviewModal: (rev: Review, initialType?: 'preferencial' | 'negra') => void;
+  handleToggleReviewVisibility?: (rev: Review) => void;
   handleRequestDeleteReview: (rev: Review) => void;
 }
 
@@ -29,6 +32,7 @@ export const ReviewsEditorTab: React.FC<ReviewsEditorTabProps> = ({
   filteredReviews,
   setSelectedReviewDetail,
   handleOpenAddReviewModal,
+  handleToggleReviewVisibility,
   handleRequestDeleteReview
 }) => {
   return (
@@ -41,12 +45,11 @@ export const ReviewsEditorTab: React.FC<ReviewsEditorTabProps> = ({
             strokeWidth={1.5}
           />
           <span className="font-extrabold text-xs text-[#003c74] uppercase">
-            Moderación y Edición de Reseñas de Clientes
+            Moderación y Edición de Reseñas de Clientes (MongoDB)
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {/* Barra de búsqueda sin icono de lupa */}
           <input
             type="text"
             placeholder="Buscar por cliente, correo o producto..."
@@ -61,27 +64,35 @@ export const ReviewsEditorTab: React.FC<ReviewsEditorTabProps> = ({
       <div className="space-y-3">
         {filteredReviews.length === 0 ? (
           <div className="p-8 text-center text-gray-500 bg-gray-50 border border-gray-200 text-xs">
-            No se encontraron reseñas con el criterio de búsqueda.
+            No se encontraron reseñas registradas en MongoDB con el criterio de búsqueda.
           </div>
         ) : (
           filteredReviews.map((rev) => {
-            const prodInfo = getReviewProductInfo(rev);
-            const reviewerEmail = getReviewUserEmail(rev);
+            const fallbackProdInfo = getReviewProductInfo(rev);
+            const productTitle = (rev as any).productTitle || fallbackProdInfo.title;
+            const productImage = (rev as any).productImage || fallbackProdInfo.image;
+            const reviewerEmail = (rev as any).userEmail || getReviewUserEmail(rev);
+            const isHidden = Boolean((rev as any).isHidden);
             const hasPreferencial = rev.records?.some((r) => r.listType === 'preferencial');
             const hasNegra = rev.records?.some((r) => r.listType === 'negra');
+
             return (
               <div
                 key={rev.id}
                 onClick={() => setSelectedReviewDetail(rev)}
                 title="Haz clic para ver el detalle completo de esta reseña"
-                className="bg-[#f8fafc] border border-gray-300 p-3.5 space-y-2.5 text-xs shadow-2xs hover:border-blue-500 hover:bg-blue-50/20 transition-colors cursor-pointer"
+                className={`border p-3.5 space-y-2.5 text-xs shadow-2xs transition-colors cursor-pointer ${
+                  isHidden
+                    ? 'bg-gray-100/90 border-amber-400 opacity-85 hover:opacity-100'
+                    : 'bg-[#f8fafc] border-gray-300 hover:border-blue-500 hover:bg-blue-50/20'
+                }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2">
                   {/* Imagen del producto reseñado + Producto + Nombre + Correo + Calificación */}
                   <div className="flex items-center gap-3">
                     <img
-                      src={prodInfo.image}
-                      alt={prodInfo.title}
+                      src={productImage}
+                      alt={productTitle}
                       className="w-12 h-12 object-cover border border-gray-400 shrink-0"
                     />
                     <div className="space-y-0.5">
@@ -93,6 +104,12 @@ export const ReviewsEditorTab: React.FC<ReviewsEditorTabProps> = ({
                         {rev.verifiedPurchase && (
                           <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-[9px] font-black px-1.5 py-0.2 rounded-xs">
                             ✓ COMPRA VERIFICADA
+                          </span>
+                        )}
+                        {isHidden && (
+                          <span className="bg-amber-200 text-amber-950 border border-amber-500 text-[9px] font-black px-1.5 py-0.2 rounded-xs inline-flex items-center gap-1">
+                            <EyeOff className="w-2.5 h-2.5 text-amber-900" />
+                            <span>OCULTA EN CATÁLOGO</span>
                           </span>
                         )}
                         {hasPreferencial && (
@@ -114,12 +131,11 @@ export const ReviewsEditorTab: React.FC<ReviewsEditorTabProps> = ({
                         <ShoppingBag className="w-3 h-3 text-blue-700 shrink-0" />
                         <span>
                           Producto reseñado:{' '}
-                          <strong className="text-[#003c74]">{prodInfo.title}</strong>
+                          <strong className="text-[#003c74]">{productTitle}</strong>
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2 pt-0.5">
-                        {/* Calificación con estrellas de borde negro fino */}
                         <div className="flex items-center text-amber-500">
                           {Array.from({ length: 5 }).map((_, i) => (
                             <Star
@@ -127,14 +143,11 @@ export const ReviewsEditorTab: React.FC<ReviewsEditorTabProps> = ({
                               stroke="#000000"
                               strokeWidth={1.4}
                               className={`w-3.5 h-3.5 ${
-                                i < rev.rating
-                                  ? 'fill-amber-400'
-                                  : 'fill-gray-200'
+                                i < rev.rating ? 'fill-amber-400' : 'fill-gray-200'
                               }`}
                             />
                           ))}
                         </div>
-                        {/* Fecha de la publicación */}
                         <span className="text-[11px] text-gray-500 font-mono">
                           Fecha: {rev.date}
                         </span>
@@ -142,11 +155,36 @@ export const ReviewsEditorTab: React.FC<ReviewsEditorTabProps> = ({
                     </div>
                   </div>
 
-                  {/* Botones por comentario: Añadir Registro + Eliminar Reseña */}
+                  {/* Botones por comentario: Ocultar/Mostrar + Añadir Registro + Eliminar Reseña */}
                   <div
                     className="flex flex-wrap items-center gap-2"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {handleToggleReviewVisibility && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleReviewVisibility(rev);
+                        }}
+                        className={`winxp-button text-xs py-1 px-2.5 font-bold flex items-center gap-1 ${
+                          isHidden ? 'text-blue-900' : 'text-amber-900'
+                        }`}
+                      >
+                        {isHidden ? (
+                          <>
+                            <Eye className="w-3.5 h-3.5 text-blue-700" />
+                            <span>Mostrar</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Ocultar</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={(e) => {

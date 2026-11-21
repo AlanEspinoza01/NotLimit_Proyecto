@@ -159,6 +159,18 @@ export const createReview = async (
       return;
     }
 
+    // 1B. Bloqueo anti-farmeo: verificar si este ítem en ESTA orden ya fue reseñado antes
+    const targetOrderItem = verifiedOrder.items.find(
+      (it: any) => String(it.productId) === String(productId)
+    );
+    if (targetOrderItem?.isReviewed) {
+      res.status(409).json({
+        success: false,
+        message: 'Esta prenda de esta orden ya fue calificada anteriormente.'
+      });
+      return;
+    }
+
     // 2. Evitar reseña duplicada para el mismo producto en la misma orden
     const existingReview = await ReviewModel.findOne({
       userId: req.user._id,
@@ -198,6 +210,13 @@ export const createReview = async (
       likes: 0,
       isHidden: false
     });
+
+    // Marcar permanentemente el ítem en la orden para que no vuelva a dar puntos si un admin borra la reseña
+    if (targetOrderItem) {
+      targetOrderItem.isReviewed = true;
+      verifiedOrder.markModified('items');
+      await verifiedOrder.save({ validateBeforeSave: false });
+    }
 
     // 3. Acreditar puntos Rewards (+100 pts con fotos reales, +20 pts solo texto)
     const earnedPoints = uploadedPhotos.length > 0 ? 100 : 20;
@@ -258,7 +277,8 @@ export const getAllReviewsAdmin = async (
 ): Promise<void> => {
   try {
     const reviews = await ReviewModel.find()
-      .populate('productId', 'title name images sku')
+      .populate('productId', 'title name images sku price category')
+      .populate('userId', 'email firstName lastName')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: reviews });
