@@ -43,6 +43,8 @@ import { useBranch, formatBranchPickupSummary } from '../../context/BranchContex
 import { useAdminNotifications } from '../../context/AdminNotificationContext';
 import { PixelIcon } from '../common/PixelIcon';
 import { WindowFrame } from './WindowFrame';
+import { LegalDocument } from '../legal/LegalDocument';
+import api from '../../api/axios';
 import { ContactoWidget } from '../home/ContactoWidget';
 import { CustomProductWidget } from '../home/CustomProductWidget';
 import {
@@ -55,6 +57,7 @@ interface ModalInfo {
   title: string;
   category: string;
   content: React.ReactNode;
+  isLegal?: boolean; // Ancho y desplazamiento especial para documentos extensos.
 }
 
 const getStoredInformativeConfig = (): InformativeConfig => {
@@ -90,6 +93,38 @@ export const OSDesktopTaskbar: React.FC = () => {
   const [showCustomProduct, setShowCustomProduct] = useState<boolean>(false);
   // Modal informativo para los botones del footer
   const [activeModal, setActiveModal] = useState<ModalInfo | null>(null);
+
+  // Sincroniza textos PUBLICADOS en MongoDB para cualquier visitante.
+  // Antes de este cambio, otros usuarios podían ver versiones antiguas guardadas solo en localStorage.
+  useEffect(() => {
+    let mounted = true;
+    const fetchPublicDocuments = async () => {
+      try {
+        const result = await api.get('/store-settings');
+        const saved = result.data?.data?.infoTexts;
+        if (mounted && saved && Object.keys(saved).length > 0) {
+          const merged = { ...DEFAULT_INFORMATIVE_CONFIG, ...saved } as InformativeConfig;
+          setInfoConfig(merged);
+          localStorage.setItem(STORAGE_INFORMATIVE_KEY, JSON.stringify(merged));
+        }
+      } catch (error) {
+        // Si el backend está desconectado, conservar la copia local como respaldo.
+        console.warn('No fue posible actualizar los documentos informativos:', error);
+      }
+    };
+    void fetchPublicDocuments();
+    return () => { mounted = false; };
+  }, []);
+
+  // Escape permite cerrar el documento desde teclado sin alterar otros modales.
+  useEffect(() => {
+    if (!activeModal) return;
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveModal(null);
+    };
+    window.addEventListener('keydown', closeWithEscape);
+    return () => window.removeEventListener('keydown', closeWithEscape);
+  }, [activeModal]);
 
   useEffect(() => {
     if (!isExpanded) return;
@@ -135,7 +170,7 @@ export const OSDesktopTaskbar: React.FC = () => {
   }, []);
 
   const handleOpenInfo = (key: string) => {
-    const cfg = getStoredInformativeConfig();
+    const cfg = infoConfig;
 
     switch (key) {
       case 'quienes_somos':
@@ -200,17 +235,15 @@ export const OSDesktopTaskbar: React.FC = () => {
       case 'privacidad':
         setActiveModal({
           title: 'Politicas_Privacidad.doc - Documento Oficial',
-          category: 'SERVICIO AL CLIENTE // SEGURIDAD',
+          category: 'SERVICIO AL CLIENTE // PRIVACIDAD',
+          isLegal: true,
           content: (
-            <div className="space-y-2 text-xs text-gray-800">
-              <p className="font-bold text-blue-900">{cfg.politicasPrivacidadTitle}</p>
-              <div className="whitespace-pre-line leading-relaxed text-gray-800">
-                {cfg.politicasPrivacidad}
-              </div>
-              <p className="text-[11px] text-gray-600 pt-1 border-t border-gray-200">
-                {cfg.politicasPrivacidadFooter}
-              </p>
-            </div>
+            <LegalDocument
+              title={cfg.politicasPrivacidadTitle}
+              content={cfg.politicasPrivacidad}
+              footer={cfg.politicasPrivacidadFooter}
+              kind="privacy"
+            />
           )
         });
         break;
@@ -219,13 +252,13 @@ export const OSDesktopTaskbar: React.FC = () => {
         setActiveModal({
           title: 'Terminos_y_Condiciones.txt - Términos del Servicio',
           category: 'SERVICIO AL CLIENTE // CONDICIONES',
+          isLegal: true,
           content: (
-            <div className="space-y-2 text-xs text-gray-800">
-              <p className="font-bold text-blue-900">{cfg.terminosCondicionesTitle}</p>
-              <div className="whitespace-pre-line leading-relaxed text-gray-800">
-                {cfg.terminosCondiciones}
-              </div>
-            </div>
+            <LegalDocument
+              title={cfg.terminosCondicionesTitle}
+              content={cfg.terminosCondiciones}
+              kind="terms"
+            />
           )
         });
         break;
@@ -348,7 +381,7 @@ export const OSDesktopTaskbar: React.FC = () => {
               </div>
               <div>
                 <div className="font-bold text-sm leading-tight text-white drop-shadow-sm">
-                  {currentUser.name}
+                  {currentUser?.name ?? 'Invitado'}
                 </div>
                 <div className="text-[11px] text-blue-100">
                   Nolimits Apparel OS ({currentRole})
@@ -890,31 +923,50 @@ export const OSDesktopTaskbar: React.FC = () => {
         </div>
       </footer>
 
-      {/* Modal Ventana Informativa Windows XP al hacer clic en un botón corporativo (Renderizado en Portal al tope de toda la app) */}
+      {/* Modal público acotado: documentos legales a 700px, resto de ventanas a 448px. */}
       {activeModal &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-[99999] bg-black/60 flex items-center justify-center p-3 sm:p-4 font-sans animate-in fade-in duration-150 overflow-y-auto">
-            <WindowFrame
-              title={activeModal.title}
-              icon={<PixelIcon name="info" size={16} />}
-              showControls={true}
-              onClose={() => setActiveModal(null)}
-              statusBarText={activeModal.category}
-              className="max-w-md w-full shadow-2xl my-auto"
+          <div className="fixed inset-0 z-[99999] bg-black/60 flex items-center justify-center p-3 sm:p-5 font-sans overflow-y-auto">
+            {/* La anchura inline impide que el estilo global .winxp-window expanda el modal. */}
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={activeModal.title}
+              style={{
+                width: '100%',
+                maxWidth: activeModal.isLegal ? 700 : 448,
+                minWidth: 0,
+                margin: 'auto'
+              }}
             >
-              <div className="p-2.5 space-y-3 max-h-[70vh] overflow-y-auto">
-                {activeModal.content}
-                <div className="flex justify-end pt-2 border-t border-gray-300">
-                  <button
-                    type="button"
-                    onClick={() => setActiveModal(null)}
-                    className="winxp-button winxp-button-primary text-xs py-1.5 px-5 font-bold text-blue-900 cursor-pointer"
-                  >
-                    Aceptar
-                  </button>
+              <WindowFrame
+                title={activeModal.title}
+                icon={<PixelIcon name="info" size={16} />}
+                showControls={true}
+                onClose={() => setActiveModal(null)}
+                statusBarText={activeModal.category}
+                className="w-full shadow-2xl"
+              >
+                <div className="flex flex-col" style={{ maxHeight: 'min(84dvh, 760px)' }}>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+                    {activeModal.content}
+                  </div>
+                  {/* Cerrar un documento NO constituye consentimiento legal. */}
+                  <div className="shrink-0 border-t border-gray-300 bg-[#ece9d8] px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] text-gray-700">
+                      {activeModal.isLegal ? 'Lectura informativa; cerrar no registra aceptación.' : 'Información de NoLimits'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveModal(null)}
+                      className="winxp-button winxp-button-primary text-xs py-1.5 px-5 font-bold text-blue-900 cursor-pointer"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </WindowFrame>
+              </WindowFrame>
+            </div>
           </div>,
           document.body
         )}
@@ -939,3 +991,5 @@ export const OSDesktopTaskbar: React.FC = () => {
     </>
   );
 };
+
+

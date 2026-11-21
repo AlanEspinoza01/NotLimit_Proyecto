@@ -1063,88 +1063,126 @@ export const SalesHistoryView: React.FC = () => {
         </div>
       </WindowFrame>
 
-      {/* MODAL WINDOWS XP DE ANULACIÓN O ELIMINACIÓN DE VENTA */}
+      {/* MODAL RESPONSIVE DE ANULACIÓN / ELIMINACIÓN.
+          La caja exterior limita el ancho aunque .winxp-window tenga max-width: 100% global. */}
       {saleToCancel && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 animate-in fade-in duration-150">
-          <WindowFrame
-            title={
-              actionType === 'delete'
-                ? 'SISTEMA CONTABLE - [Eliminar Venta de MongoDB]'
-                : 'SISTEMA CONTABLE - [Confirmar Anulación de Venta]'
-            }
-            icon={<PixelIcon name="warning" size={16} />}
-            showControls={true}
-            onClose={() => setSaleToCancel(null)}
-            statusBarText="ATENCIÓN: OPERACIÓN DE AUDITORÍA EN MONGODB"
-            className="max-w-md w-full shadow-2xl"
-          >
-            <div className="p-4 space-y-3 font-sans">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-7 h-7 text-amber-600 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <h4 className="font-bold text-sm text-blue-900">
-                    {actionType === 'delete'
-                      ? '¿Eliminar permanentemente este registro de venta de MongoDB?'
-                      : '¿Está seguro de anular esta venta en MongoDB?'}
-                  </h4>
-                  <p className="text-xs text-gray-700 leading-relaxed">
-                    Cliente: <strong>{saleToCancel.customerName}</strong> ({saleToCancel.customerEmail})
-                    <br />
-                    Monto: <strong className="font-mono text-green-800">${saleToCancel.totalAmount.toLocaleString('es-CL')} CLP</strong>
-                    <br />
-                    Sucursal: <strong>{saleToCancel.branchName}</strong>
-                  </p>
-                </div>
-              </div>
+        <div className="fixed inset-0 z-[99999] overflow-y-auto bg-black/60 px-3 py-4 sm:px-5 sm:py-6 font-sans">
+          {/* Centrado tanto en escritorio como en dispositivos móviles. */}
+          <div className="flex min-h-full items-center justify-center">
+            <div className="w-full max-w-[580px] min-w-0">
+              <WindowFrame
+                title={
+                  actionType === 'delete'
+                    ? 'SISTEMA CONTABLE - [Eliminar Venta de MongoDB]'
+                    : 'SISTEMA CONTABLE - [Confirmar Anulación de Venta]'
+                }
+                icon={<PixelIcon name="warning" size={16} />}
+                showControls={true}
+                onClose={() => setSaleToCancel(null)}
+                statusBarText="ATENCIÓN: OPERACIÓN DE AUDITORÍA EN MONGODB"
+                className="w-full min-w-0 max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)] shadow-2xl"
+                bodyClassName="min-h-0 overflow-y-auto"
+              >
+                <div className="space-y-4 p-2 sm:p-3 font-sans text-gray-900">
+                  {/* Mensaje principal, visible sin necesidad de desplazarse. */}
+                  <div className={`flex items-start gap-3 border p-3 ${
+                    actionType === 'delete'
+                      ? 'border-red-300 bg-red-50'
+                      : 'border-amber-300 bg-amber-50'
+                  }`}>
+                    <AlertTriangle className={`mt-0.5 h-6 w-6 shrink-0 ${
+                      actionType === 'delete' ? 'text-red-700' : 'text-amber-700'
+                    }`} />
+                    <div className="min-w-0 space-y-1">
+                      <h4 className="text-sm font-bold leading-snug text-blue-950">
+                        {actionType === 'delete'
+                          ? '¿Eliminar permanentemente esta venta de MongoDB?'
+                          : '¿Confirmar la anulación de esta venta?'}
+                      </h4>
+                      <p className="text-xs leading-relaxed text-gray-700">
+                        {actionType === 'delete'
+                          ? 'Esta acción elimina el registro de la venta. Verifica los datos antes de continuar.'
+                          : 'Se actualizará el estado de la venta y se registrará el motivo seleccionado.'}
+                      </p>
+                    </div>
+                  </div>
 
-              {actionType === 'cancel' && (
-                <div className="space-y-1 pt-1">
-                  <label htmlFor="cancellation-reason" className="block text-xs font-bold text-blue-900">
-                    Motivo de la Anulación:
-                  </label>
-                  <select
-                    id="cancellation-reason"
-                    value={cancellationReasonInput}
-                    onChange={(e) => setCancellationReasonInput(e.target.value)}
-                    className="w-full bg-white border border-[#7f9db9] px-2 py-1 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-600 font-semibold"
-                  >
-                    <option value="Cliente no pagó en el plazo fijado; prendas liberadas a stock">
-                      Cliente no pagó en el plazo fijado; prendas liberadas a stock
-                    </option>
-                    <option value="Solicitud de reembolso o cancelación del cliente">
-                      Solicitud de reembolso o cancelación del cliente
-                    </option>
-                    <option value="Comprobante bancario no acreditado tras 24 hrs">
-                      Comprobante bancario no acreditado tras 24 hrs
-                    </option>
-                    <option value="Error de digitación o duplicidad de orden">
-                      Error de digitación o duplicidad de orden
-                    </option>
-                    <option value="Falta de stock físico en sucursal">
-                      Falta de stock físico en sucursal
-                    </option>
-                  </select>
-                </div>
-              )}
+                  {/* Resumen legible sin depender de una ventana de ancho completo. */}
+                  <section aria-label="Datos de la venta" className="min-w-0 border border-gray-300 bg-white p-3">
+                    <h5 className="mb-3 border-b border-gray-200 pb-2 text-xs font-bold uppercase tracking-wide text-[#003c74]">
+                      Datos de la venta
+                    </h5>
+                    <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                      <div className="min-w-0">
+                        <dt className="text-[11px] font-semibold text-gray-600">Cliente</dt>
+                        <dd className="break-words text-xs font-bold text-gray-900">{saleToCancel.customerName}</dd>
+                        <dd className="break-all text-[11px] text-gray-600">{saleToCancel.customerEmail}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-[11px] font-semibold text-gray-600">Monto de la venta</dt>
+                        <dd className="text-sm font-bold font-mono text-green-800">
+                          ${saleToCancel.totalAmount.toLocaleString('es-CL')} CLP
+                        </dd>
+                      </div>
+                      <div className="min-w-0 sm:col-span-2">
+                        <dt className="text-[11px] font-semibold text-gray-600">Sucursal</dt>
+                        <dd className="break-words text-xs font-bold text-gray-900">{saleToCancel.branchName}</dd>
+                      </div>
+                    </dl>
+                  </section>
 
-              <div className="pt-3 border-t border-gray-300 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSaleToCancel(null)}
-                  className="winxp-button text-xs py-1.5 px-4 text-gray-800 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmCancel}
-                  className="winxp-button winxp-button-primary text-xs py-1.5 px-5 font-bold text-red-950 bg-red-100 border border-red-600 hover:bg-red-200 cursor-pointer"
-                >
-                  {actionType === 'delete' ? 'Eliminar de MongoDB' : 'Confirmar Anulación'}
-                </button>
-              </div>
+                  {/* Conserva las mismas opciones y los mismos valores para el backend. */}
+                  {actionType === 'cancel' && (
+                    <div className="min-w-0 space-y-1.5">
+                      <label htmlFor="cancellation-reason" className="block text-xs font-bold text-blue-900">
+                        Motivo de la anulación
+                      </label>
+                      <select
+                        id="cancellation-reason"
+                        value={cancellationReasonInput}
+                        onChange={(e) => setCancellationReasonInput(e.target.value)}
+                        className="block w-full min-w-0 rounded-none border border-[#7f9db9] bg-white px-2 py-2 text-xs font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        <option value="Cliente no pagó en el plazo fijado; prendas liberadas a stock">
+                          Cliente no pagó en el plazo fijado; prendas liberadas a stock
+                        </option>
+                        <option value="Solicitud de reembolso o cancelación del cliente">
+                          Solicitud de reembolso o cancelación del cliente
+                        </option>
+                        <option value="Comprobante bancario no acreditado tras 24 hrs">
+                          Comprobante bancario no acreditado tras 24 hrs
+                        </option>
+                        <option value="Error de digitación o duplicidad de orden">
+                          Error de digitación o duplicidad de orden
+                        </option>
+                        <option value="Falta de stock físico en sucursal">
+                          Falta de stock físico en sucursal
+                        </option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Acciones apiladas en móvil y alineadas a la derecha en escritorio. */}
+                  <div className="flex flex-col-reverse gap-2 border-t border-gray-300 pt-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setSaleToCancel(null)}
+                      className="winxp-button w-full cursor-pointer px-4 py-2 text-xs text-gray-800 sm:w-auto"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmCancel}
+                      className="winxp-button winxp-button-primary w-full cursor-pointer border border-red-600 bg-red-100 px-4 py-2 text-xs font-bold text-red-950 hover:bg-red-200 sm:w-auto"
+                    >
+                      {actionType === 'delete' ? 'Eliminar de MongoDB' : 'Confirmar Anulación'}
+                    </button>
+                  </div>
+                </div>
+              </WindowFrame>
             </div>
-          </WindowFrame>
+          </div>
         </div>
       )}
     </div>

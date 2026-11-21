@@ -4,6 +4,13 @@ import {
 import { INITIAL_REVIEWS, INITIAL_PRODUCTS } from '../../../services/mockData';
 import { Review } from '../../../types';
 import { AdminCouponTemplate } from '../../../services/couponsService';
+import {
+  NOLIMITS_PRIVACY_TITLE,
+  NOLIMITS_PRIVACY_TEXT,
+  NOLIMITS_PRIVACY_FOOTER,
+  NOLIMITS_TERMS_TITLE,
+  NOLIMITS_TERMS_TEXT
+} from '../../legal/legalCopy';
 
 // ============================================================================
 // TABS PRINCIPALES DEL EDITOR MAESTRO
@@ -113,15 +120,12 @@ export const DEFAULT_INFORMATIVE_CONFIG: InformativeConfig = {
   mediosDePago:
     '• Tarjetas de Débito: Redcompra, CuentaRUT, Cuenta Corriente de cualquier banco chileno.\n• Tarjetas de Crédito: Visa, Mastercard, Magna, American Express, Diners.\n• Tarjetas de Prepago Digital: Tenpo, MACH, Mercado Pago.',
   mediosDePagoFooter: '✓ Transacciones directas y seguras procesadas por los servidores de Transbank.',
-  // 4. Políticas de Privacidad
-  politicasPrivacidadTitle: 'Protección de Datos Personales (Ley N° 19.628 de Chile)',
-  politicasPrivacidad:
-    'En NoLimits respetamos rigurosamente tu privacidad. Los datos proporcionados durante el proceso de compra (Nombre, RUT, Teléfono, Dirección y Correo electrónico) son utilizados exclusivamente para:\n• Generar la boleta electrónica y comprobante de compra.\n• Gestionar el retiro presencial o rotulación con el courier de despacho.\n• Enviar notificaciones del estado de tu orden y código de tracking.',
-  politicasPrivacidadFooter: 'Tus datos jamás serán transferidos ni comercializados a terceras partes.',
-  // 5. Términos y Condiciones
-  terminosCondicionesTitle: 'Términos de Compra y Despacho',
-  terminosCondiciones:
-    'Al realizar una orden en NoLimits, el cliente acepta las condiciones de stock sincronizado, los tiempos estimados de preparación en tienda y los plazos de entrega nacional según el courier seleccionado.\n\nCada prenda cuenta con garantía legal de 6 meses ante fallas de fábrica conforme a la normativa del SERNAC.',
+  // 4 y 5. Documentos legales redactados para el e-commerce NoLimits.
+  politicasPrivacidadTitle: NOLIMITS_PRIVACY_TITLE,
+  politicasPrivacidad: NOLIMITS_PRIVACY_TEXT,
+  politicasPrivacidadFooter: NOLIMITS_PRIVACY_FOOTER,
+  terminosCondicionesTitle: NOLIMITS_TERMS_TITLE,
+  terminosCondiciones: NOLIMITS_TERMS_TEXT,
   // 6. Métodos de Envío
   metodosEnvioTitle: 'Couriers Oficiales de Despacho a Todo Chile',
   metodosEnvioStarken:
@@ -381,3 +385,5 @@ export function loadCustomBackgroundConfig(): CustomBackgroundConfig {
     updatedAt: ''
   };
 }
+
+

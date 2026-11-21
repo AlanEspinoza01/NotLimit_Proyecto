@@ -1082,172 +1082,201 @@ absolute inset-0 z-50 bg-white/70 flex items-center justify-center backdrop-blur
       </WindowFrame>
 
       {/* =================================================================
-          MODAL WINDOWS XP: "VER MÁS INFORMACIÓN" DEL PROVEEDOR
+          MODAL WINDOWS XP: FICHA RESPONSIVE DEL PROVEEDOR
+          - Se limita el ancho sin alterar el estilo global de las ventanas XP.
+          - Las secciones se apilan en pantallas pequeñas.
+          - El contenido se desplaza dentro de la ventana en pantallas bajas.
           ================================================================= */}
       {modalSupplier && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <WindowFrame
-            title={`FICHA DE PROVEEDOR: ${modalSupplier.companyName.toUpperCase()}`}
-            icon={<PixelIcon name="info" size={16} />}
-            showControls={true}
-            onClose={() => setModalSupplier(null)}
-            statusBarText="AUDITORÍA DE PROVEEDOR // FICHA TÉCNICA OFICIAL"
-            className="max-w-5xl w-full shadow-2xl max-h-[82vh] flex flex-col"
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center overflow-y-auto p-3 sm:p-5 animate-in fade-in duration-150">
+          {/* Este contenedor limita el ancho: el CSS global de .winxp-window usa max-width: 100%. */}
+          <div
+            className="w-full min-w-0 max-h-[calc(100dvh-24px)] flex flex-col my-auto"
+            style={{ maxWidth: 760 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Ficha de proveedor: ${modalSupplier.companyName}`}
           >
-            <div className="p-4 space-y-3.5 font-sans text-xs overflow-y-auto max-h-[calc(82vh-60px)]">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-300 pb-2.5">
-                <div>
-                  <h3 className="font-extrabold text-base md:text-lg text-blue-900 leading-tight">
-                    {modalSupplier.companyName}
-                  </h3>
-                  <p className="text-[11px] text-gray-600 mt-0.5">
-                    Proveedor registrado el {modalSupplier.createdAt.substring(0, 10)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-green-100 text-green-900 font-bold px-3 py-1 rounded-xs border border-green-300 text-xs">
-                    Mínimo de Compra: ${modalSupplier.minimumPurchase.toLocaleString('es-CL')} CLP
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <div className="bg-[#f8fafc] border border-gray-300 p-3 rounded-xs space-y-1.5">
-                    <div className="font-bold text-blue-900 text-[11px] uppercase flex items-center gap-1.5">
-                      <Package className="w-4 h-4 text-blue-700" />
-                      <span>Productos y Suministros Ofrecidos</span>
+            <WindowFrame
+              title={`FICHA DE PROVEEDOR: ${modalSupplier.companyName.toUpperCase()}`}
+              icon={<PixelIcon name="info" size={16} />}
+              showControls={true}
+              onClose={() => setModalSupplier(null)}
+              statusBarText="DIRECTORIO DE PROVEEDORES // FICHA TÉCNICA"
+              className="w-full min-w-0 max-h-[calc(100dvh-24px)] shadow-2xl"
+              bodyClassName="min-h-0 overflow-y-auto overscroll-contain"
+            >
+              <div className="space-y-3 p-2 sm:p-3 font-sans text-xs text-gray-900">
+                {/* Encabezado: nombre de empresa y compra mínima, sin desbordar el modal. */}
+                <header className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 border-b border-gray-300 pb-3">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <div className="shrink-0 p-2 bg-blue-50 border border-blue-200 rounded-xs">
+                      <Building2 className="h-5 w-5 text-blue-800" />
                     </div>
-                    <p className="text-gray-800 leading-relaxed font-medium text-xs break-words">
-                      {modalSupplier.productsOffered}
+                    <div className="min-w-0">
+                      <h3 className="text-sm sm:text-base font-extrabold text-blue-900 leading-snug break-words">
+                        {modalSupplier.companyName}
+                      </h3>
+                      <p className="mt-1 text-[11px] text-gray-600">
+                        Registrado el {modalSupplier.createdAt.substring(0, 10)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="shrink-0 self-start bg-green-50 border border-green-300 px-3 py-2 rounded-xs">
+                    <p className="text-[10px] font-semibold text-green-900 uppercase">Compra mínima</p>
+                    <p className="font-extrabold text-sm text-green-900">
+                      ${modalSupplier.minimumPurchase.toLocaleString('es-CL')} CLP
                     </p>
                   </div>
+                </header>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div className="bg-blue-50 border border-blue-200 p-2.5 rounded-xs space-y-1">
-                      <div className="font-bold text-blue-900 text-[10px] uppercase flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-blue-700" />
-                        <span>Días de Pedido</span>
-                      </div>
-                      <div className="font-bold text-gray-900 text-xs leading-normal">{modalSupplier.orderDays || 'No especificado'}</div>
-                    </div>
+                {/* Sección 1: productos e insumos que ofrece el proveedor. */}
+                <section className="border border-gray-300 bg-[#f8fafc] p-3 rounded-xs space-y-2">
+                  <h4 className="font-bold text-[11px] uppercase tracking-wide text-blue-900 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-blue-700 shrink-0" />
+                    <span>Productos y suministros ofrecidos</span>
+                  </h4>
+                  <p className="text-xs leading-relaxed text-gray-800 whitespace-pre-wrap break-words">
+                    {modalSupplier.productsOffered || 'No especificado'}
+                  </p>
+                </section>
 
-                    <div className="bg-green-50 border border-green-200 p-2.5 rounded-xs space-y-1">
-                      <div className="font-bold text-green-900 text-[10px] uppercase flex items-center gap-1">
-                        <Truck className="w-3.5 h-3.5 text-green-700" />
-                        <span>Días de Reparto / Despacho</span>
-                      </div>
-                      <div className="font-bold text-gray-900 text-xs leading-normal">{modalSupplier.deliveryDays || 'No especificado'}</div>
-                    </div>
-                  </div>
-
-                  {modalSupplier.website && modalSupplier.website !== 'https://' && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-gray-50 border border-gray-200 rounded-xs text-xs">
-                      <span className="font-semibold text-gray-700">Sitio Web Oficial:</span>
-                      <a
-                        href={modalSupplier.website}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-700 hover:underline font-mono font-bold flex items-center gap-1 break-all"
-                      >
-                        <span>{modalSupplier.website}</span>
-                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                      </a>
-                    </div>
-                  )}
+                {/* Sección 2: plazos de pedido y despacho en columnas adaptables. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <section className="border border-blue-200 bg-blue-50 rounded-xs p-3 space-y-1">
+                    <h4 className="flex items-center gap-1.5 text-[11px] font-bold text-blue-900 uppercase">
+                      <Calendar className="w-4 h-4 shrink-0" /> Días de pedido
+                    </h4>
+                    <p className="font-semibold leading-relaxed break-words">
+                      {modalSupplier.orderDays || 'No especificado'}
+                    </p>
+                  </section>
+                  <section className="border border-green-200 bg-green-50 rounded-xs p-3 space-y-1">
+                    <h4 className="flex items-center gap-1.5 text-[11px] font-bold text-green-900 uppercase">
+                      <Truck className="w-4 h-4 shrink-0" /> Días de despacho
+                    </h4>
+                    <p className="font-semibold leading-relaxed break-words">
+                      {modalSupplier.deliveryDays || 'No especificado'}
+                    </p>
+                  </section>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="bg-[#f8fafc] border border-gray-300 p-3 rounded-xs space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-gray-700 text-[11px] uppercase flex items-center gap-1">
-                        <User className="w-3.5 h-3.5 text-blue-700" />
-                        <span>Contacto Comercial</span>
-                      </div>
-                      <span className="text-[10px] text-indigo-900 font-bold bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-xs">
-                        {modalSupplier.contactRole || 'Sin cargo especificado'}
-                      </span>
+                {/* Secciones 3 y 4: contacto y ubicación; una columna en móvil. */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                  <section className="min-w-0 border border-gray-300 bg-[#f8fafc] p-3 rounded-xs space-y-3">
+                    <h4 className="font-bold text-[11px] uppercase tracking-wide text-blue-900 flex items-center gap-2">
+                      <User className="w-4 h-4 text-blue-700 shrink-0" /> Contacto comercial
+                    </h4>
+                    <div className="space-y-1">
+                      <p className="font-bold text-sm text-gray-900 break-words">
+                        {modalSupplier.contactName || 'No registrado'}
+                      </p>
+                      <p className="text-[11px] text-gray-600 break-words">
+                        {modalSupplier.contactRole || 'Cargo no especificado'}
+                      </p>
                     </div>
-                    <div className="font-extrabold text-gray-900 text-sm">
-                      {modalSupplier.contactName}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono pt-1 border-t border-gray-200">
-                      <div className="flex items-center gap-1.5 text-gray-800">
-                        <Phone className="w-3.5 h-3.5 text-green-700 shrink-0" />
-                        <span className="break-all">{modalSupplier.phone || 'No registrado'}</span>
+                    <div className="border-t border-gray-200 pt-2 space-y-2">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Phone className="w-4 h-4 text-green-700 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <span className="block text-[10px] font-semibold text-gray-600 uppercase">Teléfono</span>
+                          {modalSupplier.phone ? (
+                            <a href={`tel:${modalSupplier.phone.replace(/[^+\d]/g, '')}`} className="text-blue-800 hover:underline font-medium break-all">
+                              {modalSupplier.phone}
+                            </a>
+                          ) : (
+                            <span className="text-gray-500">No registrado</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 text-blue-800">
-                        <Mail className="w-3.5 h-3.5 text-blue-700 shrink-0" />
-                        {modalSupplier.email ? (
-                          <a href={`mailto:${modalSupplier.email}`} className="hover:underline break-all">
-                            {modalSupplier.email}
-                          </a>
-                        ) : (
-                          <span className="text-gray-400">No registrado</span>
-                        )}
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Mail className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <span className="block text-[10px] font-semibold text-gray-600 uppercase">Correo electrónico</span>
+                          {modalSupplier.email ? (
+                            <a href={`mailto:${modalSupplier.email}`} className="text-blue-800 hover:underline font-medium break-all">
+                              {modalSupplier.email}
+                            </a>
+                          ) : (
+                            <span className="text-gray-500">No registrado</span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#f8fafc] border border-gray-300 p-3 rounded-xs space-y-2">
-                    <div className="font-bold text-blue-900 text-[11px] uppercase flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-blue-700" />
-                      <span>Ubicación Física Completa</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2 text-xs">
-                      <div>
-                        <span className="text-gray-500 font-semibold block text-[10px] uppercase">Región:</span>
-                        <span className="font-bold text-gray-900 block leading-tight">{modalSupplier.region}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 font-semibold block text-[10px] uppercase">Ciudad / Comuna:</span>
-                        <span className="font-bold text-gray-900 block leading-tight">{modalSupplier.city}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 font-semibold block text-[10px] uppercase">Dirección (Calle y N°):</span>
-                        <span className="font-bold text-gray-900 block leading-tight">
-                          {modalSupplier.street || 'S/N'} {modalSupplier.number ? `#${modalSupplier.number}` : ''}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 font-semibold block text-[10px] uppercase">Código Postal:</span>
-                        <span className="font-mono font-bold text-gray-900 block">
-                          {modalSupplier.postalCode || 'Opcional / S/N'}
-                        </span>
-                      </div>
-                      {modalSupplier.reference && (
-                        <div className="sm:col-span-2 pt-1 border-t border-gray-200">
-                          <span className="text-gray-500 font-semibold block text-[10px] uppercase">Referencia de Entrega:</span>
-                          <span className="text-gray-800 italic text-[11px] leading-relaxed block">{modalSupplier.reference}</span>
+                      {modalSupplier.website && modalSupplier.website !== 'https://' && (
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Globe className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <span className="block text-[10px] font-semibold text-gray-600 uppercase">Sitio web</span>
+                            {/^https?:\/\//i.test(modalSupplier.website) ? (
+                              <a href={modalSupplier.website} target="_blank" rel="noopener noreferrer" className="text-blue-800 hover:underline font-medium break-all inline-flex items-start gap-1">
+                                <span className="break-all">{modalSupplier.website}</span>
+                                <ExternalLink className="w-3 h-3 shrink-0 mt-0.5" />
+                              </a>
+                            ) : (
+                              <span className="text-gray-700 break-all">{modalSupplier.website}</span>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
-                  </div>
-                </div>
-              </div>
+                  </section>
 
-              <div className="pt-2.5 border-t border-gray-300 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleStartEdit(modalSupplier);
-                    setModalSupplier(null);
-                  }}
-                  className="winxp-button text-xs py-1.5 px-4 font-bold text-blue-900 flex items-center gap-1.5"
-                >
-                  <Edit className="w-3.5 h-3.5 text-blue-700" />
-                  <span>Editar este Proveedor</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalSupplier(null)}
-                  className="winxp-button winxp-button-primary text-xs py-1.5 px-5 font-bold text-blue-900"
-                >
-                  Cerrar
-                </button>
+                  <section className="min-w-0 border border-gray-300 bg-[#f8fafc] p-3 rounded-xs space-y-3">
+                    <h4 className="font-bold text-[11px] uppercase tracking-wide text-blue-900 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-blue-700 shrink-0" /> Ubicación del proveedor
+                    </h4>
+                    <dl className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2">
+                      <div>
+                        <dt className="text-[10px] uppercase text-gray-600 font-semibold">Región</dt>
+                        <dd className="text-xs font-semibold break-words">{modalSupplier.region || 'No registrada'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] uppercase text-gray-600 font-semibold">Ciudad / comuna</dt>
+                        <dd className="text-xs font-semibold break-words">{modalSupplier.city || 'No registrada'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] uppercase text-gray-600 font-semibold">Dirección</dt>
+                        <dd className="text-xs font-semibold break-words">
+                          {[modalSupplier.street, modalSupplier.number && modalSupplier.number !== 'S/N' ? `N° ${modalSupplier.number}` : modalSupplier.number].filter(Boolean).join(', ') || 'No registrada'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-[10px] uppercase text-gray-600 font-semibold">Código postal</dt>
+                        <dd className="text-xs font-semibold break-words">{modalSupplier.postalCode || 'No registrado'}</dd>
+                      </div>
+                      {modalSupplier.reference && (
+                        <div>
+                          <dt className="text-[10px] uppercase text-gray-600 font-semibold">Referencia de entrega</dt>
+                          <dd className="text-xs break-words whitespace-pre-wrap">{modalSupplier.reference}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  </section>
+                </div>
+
+                {/* Acciones originales: editar conserva el formulario y cerrar no modifica los datos. */}
+                <footer className="flex flex-col-reverse sm:flex-row justify-end gap-2 border-t border-gray-300 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleStartEdit(modalSupplier);
+                      setModalSupplier(null);
+                    }}
+                    className="winxp-button flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-blue-900 w-full sm:w-auto"
+                  >
+                    <Edit className="w-4 h-4 text-blue-700" /> Editar este proveedor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalSupplier(null)}
+                    className="winxp-button winxp-button-primary w-full sm:w-auto px-5 py-2 text-xs font-bold text-blue-900"
+                  >
+                    Cerrar
+                  </button>
+                </footer>
               </div>
-            </div>
-          </WindowFrame>
+            </WindowFrame>
+          </div>
         </div>
       )}
 

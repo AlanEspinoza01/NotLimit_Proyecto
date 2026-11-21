@@ -2,6 +2,7 @@ NotLimit_Proyecto/
 ├── .git/ [omitida]
 ├── backend/
 │   ├── dist/ [omitida]
+│   ├── node_modules/ [omitida]
 │   ├── scripts/
 │   │   └── seed.ts
 │   ├── src/
@@ -210,6 +211,8 @@ NotLimit_Proyecto/
 │   │   ├── CartContext.tsx
 │   │   └── WishlistContext.tsx
 │   ├── images/ [omitida]
+│   ├── node_modules/ [omitida]
+│   ├── public/ [omitida]
 │   ├── routes/
 │   │   ├── AppRoutes.tsx
 │   │   └── ProtectedRoute.tsx
@@ -254,14 +257,12 @@ NotLimit_Proyecto/
 │   │   └── ProfileView.tsx
 │   ├── App.tsx
 │   ├── index.css
-│   └── main.tsx
-├── node_modules/ [omitida]
-├── public/ [omitida]
+│   ├── index.html
+│   ├── main.tsx
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── vite.config.ts
 ├── .gitignore
-├── index.html
 ├── metadata.json
-├── package.json
 ├── README.md
-├── tsconfig.json
-├── vercel.json
-└── vite.config.ts
+└── vercel.json

@@ -14,9 +14,11 @@ import {
 } from 'lucide-react';
 import { WindowFrame } from '../../layout/WindowFrame';
 import { PixelIcon } from '../../common/PixelIcon';
+import { LegalDocument } from '../../legal/LegalDocument';
 import {
   InformativeConfig,
   InformativeSectionKey,
+  DEFAULT_INFORMATIVE_CONFIG,
   formatChileanWhatsApp
 } from './pageEditorTypes';
 
@@ -35,6 +37,23 @@ export const InformativePagesTab: React.FC<InformativePagesTabProps> = ({
   setActiveInfoSection,
   handleSaveInformative
 }) => {
+  const legalTab = activeInfoSection === 'politicasPrivacidad' || activeInfoSection === 'terminosCondiciones';
+
+  // Evita sobreescribir contenido previamente editado o guardado en MongoDB sin permiso.
+  const loadProposedLegalCopy = (kind: 'privacy' | 'terms') => {
+    if (!window.confirm('¿Reemplazar el texto actual por la propuesta de NoLimits? Guarda los cambios al finalizar.')) return;
+    setInformativeConfig((previous) => kind === 'privacy' ? ({
+      ...previous,
+      politicasPrivacidadTitle: DEFAULT_INFORMATIVE_CONFIG.politicasPrivacidadTitle,
+      politicasPrivacidad: DEFAULT_INFORMATIVE_CONFIG.politicasPrivacidad,
+      politicasPrivacidadFooter: DEFAULT_INFORMATIVE_CONFIG.politicasPrivacidadFooter
+    }) : ({
+      ...previous,
+      terminosCondicionesTitle: DEFAULT_INFORMATIVE_CONFIG.terminosCondicionesTitle,
+      terminosCondiciones: DEFAULT_INFORMATIVE_CONFIG.terminosCondiciones
+    }));
+  };
+
   return (
     <div className="bg-white border-2 border-gray-400 p-4 space-y-4 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2">
@@ -167,7 +186,7 @@ export const InformativePagesTab: React.FC<InformativePagesTabProps> = ({
         </div>
 
         {/* Cuadro idéntico al modal informativo de la página pública */}
-        <div className="max-w-lg mx-auto">
+        <div className="w-full mx-auto" style={{ maxWidth: legalTab ? 720 : 512 }}>
           {activeInfoSection === 'quienesSomos' && (
             <WindowFrame
               title="Quienes_Somos.txt - Bloc de Notas"
@@ -352,56 +371,61 @@ export const InformativePagesTab: React.FC<InformativePagesTabProps> = ({
             <WindowFrame
               title="Politicas_Privacidad.doc - Documento Oficial"
               icon={<PixelIcon name="info" size={16} />}
-              showControls={true}
+              showControls={false}
               statusBarText="SERVICIO AL CLIENTE // SEGURIDAD"
               className="w-full shadow-xl"
             >
-              <div className="p-2.5 space-y-2.5 text-xs text-gray-800">
-                <div className="pb-1 border-b border-gray-300 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-blue-700 shrink-0" />
+              <div className="p-3 sm:p-4 space-y-3 bg-white text-gray-800">
+                {/* Cambiar el título conserva el modelo de datos original. */}
+                <label className="block text-[12px] font-bold text-gray-800">
+                  Título del documento
                   <input
                     type="text"
                     value={informativeConfig.politicasPrivacidadTitle}
-                    onChange={(e) =>
-                      setInformativeConfig({
-                        ...informativeConfig,
-                        politicasPrivacidadTitle: e.target.value
-                      })
-                    }
-                    className="w-full bg-transparent font-bold text-blue-900 text-xs focus:outline-1 focus:outline-blue-600 px-1"
+                    onChange={(e) => setInformativeConfig({ ...informativeConfig, politicasPrivacidadTitle: e.target.value })}
+                    className="block w-full mt-1 winxp-input text-[13px] p-2"
                   />
-                </div>
-
-                <textarea
-                  rows={6}
-                  value={informativeConfig.politicasPrivacidad}
-                  onChange={(e) =>
-                    setInformativeConfig({
-                      ...informativeConfig,
-                      politicasPrivacidad: e.target.value
-                    })
-                  }
-                  className="w-full bg-white border border-dashed border-blue-300 focus:border-blue-600 p-2 text-xs leading-relaxed text-gray-800 resize-y"
-                />
-
-                <div className="pt-1 border-t border-gray-200">
+                </label>
+                <label className="block text-[12px] font-bold text-gray-800">
+                  Texto de la política (editable)
+                  <textarea
+                    rows={12}
+                    value={informativeConfig.politicasPrivacidad}
+                    onChange={(e) => setInformativeConfig({ ...informativeConfig, politicasPrivacidad: e.target.value })}
+                    className="block w-full mt-1 bg-white border border-blue-300 focus:border-blue-600 p-3 text-[13px] leading-relaxed text-gray-800 resize-y"
+                    style={{ maxHeight: 420 }}
+                  />
+                </label>
+                <label className="block text-[12px] font-bold text-gray-800">
+                  Nota final
                   <input
                     type="text"
                     value={informativeConfig.politicasPrivacidadFooter}
-                    onChange={(e) =>
-                      setInformativeConfig({
-                        ...informativeConfig,
-                        politicasPrivacidadFooter: e.target.value
-                      })
-                    }
-                    className="w-full bg-gray-50 border border-dashed border-gray-300 focus:border-blue-600 p-1.5 text-[11px] text-gray-600"
+                    onChange={(e) => setInformativeConfig({ ...informativeConfig, politicasPrivacidadFooter: e.target.value })}
+                    className="block w-full mt-1 winxp-input text-[12px] p-2"
                   />
-                </div>
-
-                <div className="flex justify-end pt-2 border-t border-gray-300">
-                  <span className="winxp-button winxp-button-primary text-xs py-1 px-5 font-bold text-blue-900 opacity-90 select-none">
-                    Aceptar
-                  </span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => loadProposedLegalCopy('privacy')}
+                  className="winxp-button text-[12px] px-3 py-1.5 font-bold text-[#003c74]"
+                >
+                  Cargar propuesta de Política de Privacidad
+                </button>
+                <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded p-2">
+                  Antes de publicar, completa los datos del responsable, el contacto y los procedimientos reales de la tienda.
+                </p>
+                <div className="border-t border-gray-300 pt-3">
+                  <p className="font-bold text-[12px] text-blue-900 mb-3">Vista previa para los clientes</p>
+                  {/* Evita que la vista previa ocupe toda la página del editor. */}
+                  <div className="max-h-[420px] overflow-y-auto rounded-md border border-gray-300 p-2 sm:p-3 bg-gray-50">
+                    <LegalDocument
+                      title={informativeConfig.politicasPrivacidadTitle}
+                      content={informativeConfig.politicasPrivacidad}
+                      footer={informativeConfig.politicasPrivacidadFooter}
+                      kind="privacy"
+                    />
+                  </div>
                 </div>
               </div>
             </WindowFrame>
@@ -411,42 +435,50 @@ export const InformativePagesTab: React.FC<InformativePagesTabProps> = ({
             <WindowFrame
               title="Terminos_y_Condiciones.txt - Términos del Servicio"
               icon={<PixelIcon name="info" size={16} />}
-              showControls={true}
+              showControls={false}
               statusBarText="SERVICIO AL CLIENTE // CONDICIONES"
               className="w-full shadow-xl"
             >
-              <div className="p-2.5 space-y-2.5 text-xs text-gray-800">
-                <div className="pb-1 border-b border-gray-300 flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-blue-700 shrink-0" />
+              <div className="p-3 sm:p-4 space-y-3 bg-white text-gray-800">
+                <label className="block text-[12px] font-bold text-gray-800">
+                  Título del documento
                   <input
                     type="text"
                     value={informativeConfig.terminosCondicionesTitle}
-                    onChange={(e) =>
-                      setInformativeConfig({
-                        ...informativeConfig,
-                        terminosCondicionesTitle: e.target.value
-                      })
-                    }
-                    className="w-full bg-transparent font-bold text-blue-900 text-xs focus:outline-1 focus:outline-blue-600 px-1"
+                    onChange={(e) => setInformativeConfig({ ...informativeConfig, terminosCondicionesTitle: e.target.value })}
+                    className="block w-full mt-1 winxp-input text-[13px] p-2"
                   />
-                </div>
-
-                <textarea
-                  rows={6}
-                  value={informativeConfig.terminosCondiciones}
-                  onChange={(e) =>
-                    setInformativeConfig({
-                      ...informativeConfig,
-                      terminosCondiciones: e.target.value
-                    })
-                  }
-                  className="w-full bg-white border border-dashed border-blue-300 focus:border-blue-600 p-2 text-xs leading-relaxed text-gray-800 resize-y"
-                />
-
-                <div className="flex justify-end pt-2 border-t border-gray-300">
-                  <span className="winxp-button winxp-button-primary text-xs py-1 px-5 font-bold text-blue-900 opacity-90 select-none">
-                    Aceptar
-                  </span>
+                </label>
+                <label className="block text-[12px] font-bold text-gray-800">
+                  Términos y condiciones (editable)
+                  <textarea
+                    rows={12}
+                    value={informativeConfig.terminosCondiciones}
+                    onChange={(e) => setInformativeConfig({ ...informativeConfig, terminosCondiciones: e.target.value })}
+                    className="block w-full mt-1 bg-white border border-blue-300 focus:border-blue-600 p-3 text-[13px] leading-relaxed text-gray-800 resize-y"
+                    style={{ maxHeight: 420 }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => loadProposedLegalCopy('terms')}
+                  className="winxp-button text-[12px] px-3 py-1.5 font-bold text-[#003c74]"
+                >
+                  Cargar propuesta de Términos y Condiciones
+                </button>
+                <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded p-2">
+                  Verifica las condiciones reales de pago, despachos, cambios y datos legales del vendedor antes de publicar.
+                </p>
+                <div className="border-t border-gray-300 pt-3">
+                  <p className="font-bold text-[12px] text-blue-900 mb-3">Vista previa para los clientes</p>
+                  {/* Vista previa con desplazamiento propio. */}
+                  <div className="max-h-[420px] overflow-y-auto rounded-md border border-gray-300 p-2 sm:p-3 bg-gray-50">
+                    <LegalDocument
+                      title={informativeConfig.terminosCondicionesTitle}
+                      content={informativeConfig.terminosCondiciones}
+                      kind="terms"
+                    />
+                  </div>
                 </div>
               </div>
             </WindowFrame>
@@ -690,3 +722,5 @@ export const InformativePagesTab: React.FC<InformativePagesTabProps> = ({
     </div>
   );
 };
+
+
