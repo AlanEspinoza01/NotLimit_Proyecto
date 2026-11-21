@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   MapPin,
   X,
@@ -9,6 +9,11 @@ import {
   Trash2
 } from 'lucide-react';
 import { UserAddress } from './profileTypes';
+import {
+  CHILE_REGIONS,
+  getCommunesByRegion,
+  findRegionByCommune
+} from '../../services/shippingQuotesEngine';
 
 export interface ProfileAddressesTabProps {
   addresses: UserAddress[];
@@ -75,6 +80,31 @@ export const ProfileAddressesTab: React.FC<ProfileAddressesTabProps> = ({
   handleSetDefaultAddress,
   handleDeleteAddress
 }) => {
+  // Región seleccionada en cascada con las comunas oficiales de Chile
+  const [selectedRegion, setSelectedRegion] = useState<string>(() =>
+    findRegionByCommune(newAddrComuna || 'Viña del Mar')
+  );
+
+  // Sincronizar la región automáticamente al abrir edición o cambiar de dirección
+  useEffect(() => {
+    if (newAddrComuna) {
+      const detected = findRegionByCommune(newAddrComuna);
+      if (detected && detected !== selectedRegion) {
+        setSelectedRegion(detected);
+      }
+    }
+  }, [newAddrComuna, editingAddressId, isAddingAddress]);
+
+  const availableCommunes = getCommunesByRegion(selectedRegion);
+
+  const handleRegionChange = (region: string) => {
+    setSelectedRegion(region);
+    const communesInRegion = getCommunesByRegion(region);
+    if (communesInRegion.length > 0) {
+      setNewAddrComuna(communesInRegion[0]);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Cabecera */}
@@ -309,6 +339,43 @@ export const ProfileAddressesTab: React.FC<ProfileAddressesTabProps> = ({
               <span className="text-[10px] text-gray-500">Un nombre corto y reconocible para identificar este domicilio (máx. 30 caracteres).</span>
             </div>
 
+            {/* 2. Región y Comuna (Separados, arriba de Calle y Número) */}
+            <div>
+              <label className="block font-bold text-gray-800 mb-1">
+                Región: <span className="text-red-600">*</span>
+              </label>
+              <select
+                required
+                value={selectedRegion}
+                onChange={(e) => handleRegionChange(e.target.value)}
+                className="winxp-input w-full text-xs py-1.5 bg-white font-medium"
+              >
+                {CHILE_REGIONS.map((region) => (
+                  <option key={region} value={region}>
+                    {region}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-gray-800 mb-1">
+                Comuna: <span className="text-red-600">*</span>
+              </label>
+              <select
+                required
+                value={availableCommunes.includes(newAddrComuna) ? newAddrComuna : availableCommunes[0] || ''}
+                onChange={(e) => setNewAddrComuna(e.target.value)}
+                className="winxp-input w-full text-xs py-1.5 bg-white font-medium"
+              >
+                {availableCommunes.map((comuna) => (
+                  <option key={comuna} value={comuna}>
+                    {comuna}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* 3. Calle / Avenida (máx 650 caracteres, sin saltos) y Número (numérico, máx 50 caracteres) con opción Calle sin número */}
             <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-4 gap-2.5">
               <div className="sm:col-span-3">
@@ -435,30 +502,7 @@ export const ProfileAddressesTab: React.FC<ProfileAddressesTabProps> = ({
               <span className="text-[10px] text-gray-500">7 dígitos numéricos oficiales de CorreosChile.</span>
             </div>
 
-            {/* 6. Comuna / Ciudad */}
-            <div className="sm:col-span-2">
-              <label className="block font-bold text-gray-800 mb-1">
-                Comuna / Ciudad: <span className="text-red-600">*</span>
-              </label>
-              <select
-                value={newAddrComuna}
-                onChange={(e) => setNewAddrComuna(e.target.value)}
-                className="winxp-input w-full text-xs py-1.5 bg-white font-medium"
-              >
-                <option value="Viña del Mar">Viña del Mar (Región de Valparaíso)</option>
-                <option value="Valparaíso">Valparaíso (Región de Valparaíso)</option>
-                <option value="Quilpué">Quilpué (Región de Valparaíso)</option>
-                <option value="Villa Alemana">Villa Alemana (Región de Valparaíso)</option>
-                <option value="Concón">Concón (Región de Valparaíso)</option>
-                <option value="Santiago">Santiago (Región Metropolitana)</option>
-                <option value="Providencia">Providencia (Región Metropolitana)</option>
-                <option value="Las Condes">Las Condes (Región Metropolitana)</option>
-                <option value="Concepción">Concepción (Región del Biobío)</option>
-                <option value="Otra Comuna">Otra Comuna (Chile)</option>
-              </select>
-            </div>
-
-            {/* 7. Instrucciones para Despachador (Opcional, máx 650 caracteres) */}
+            {/* 6. Instrucciones para Despachador (Opcional, máx 650 caracteres) */}
             <div className="sm:col-span-2">
               <div className="flex items-center justify-between mb-1">
                 <label className="font-bold text-gray-800">
@@ -630,7 +674,7 @@ export const ProfileAddressesTab: React.FC<ProfileAddressesTabProps> = ({
                     {addr.street} #{addr.number} {addr.apartment && `· ${addr.apartment}`}
                   </div>
                   <div className="text-gray-600">
-                    {addr.comuna}, {addr.city} · {addr.region} {addr.postalCode && `(CP: ${addr.postalCode})`}
+                    {addr.comuna}, {addr.region} {addr.postalCode && `(CP: ${addr.postalCode})`}
                   </div>
                   {addr.notes && (
                     <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-xs inline-block mt-1">

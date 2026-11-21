@@ -476,11 +476,17 @@ export const ProfileView: React.FC = () => {
       addLoyaltyPoints(1000);
     }
   }, []);
-
+ 
   // =========================================================================
   // GESTIÓN DE DIRECCIONES (Múltiples Direcciones & Selección de Predeterminada)
   // =========================================================================
+  // =========================================================================
+  // GESTIÓN DE DIRECCIONES (SINCRONIZADA CON MONGODB)
+  // =========================================================================
   const [addresses, setAddresses] = useState<UserAddress[]>(() => {
+    if (Array.isArray((currentUser as any)?.addresses) && (currentUser as any).addresses.length > 0) {
+      return (currentUser as any).addresses;
+    }
     try {
       const saved = localStorage.getItem('nolimits_user_addresses');
       if (saved) {
@@ -490,39 +496,15 @@ export const ProfileView: React.FC = () => {
     } catch {
       // ignore
     }
-    return [
-      {
-        id: 'addr_principal_01',
-        alias: 'Casa Principal',
-        recipientName: currentUser?.name || 'Valeria Gallardo',
-        street: 'Av. Libertad',
-        number: '1250',
-        apartment: 'Depto 402',
-        comuna: 'Viña del Mar',
-        city: 'Viña del Mar',
-        region: 'Región de Valparaíso',
-        postalCode: '2520000',
-        phone: '+56 9 9123 4567',
-        notes: 'Entregar en conserjería edificio torre B',
-        isDefault: true
-      },
-      {
-        id: 'addr_trabajo_02',
-        alias: 'Estudio / Trabajo',
-        recipientName: currentUser?.name || 'Valeria Gallardo',
-        street: 'Calle Prat',
-        number: '856',
-        apartment: 'Oficina 301',
-        comuna: 'Valparaíso',
-        city: 'Valparaíso',
-        region: 'Región de Valparaíso',
-        postalCode: '2340000',
-        phone: '+56 9 8765 4321',
-        notes: 'Horario continuado 09:00 a 18:30 hrs',
-        isDefault: false
-      }
-    ];
+    return [];
   });
+
+  // Sincronizar libreta de direcciones cuando el usuario autenticado carga desde MongoDB
+  useEffect(() => {
+    if (Array.isArray((currentUser as any)?.addresses)) {
+      setAddresses((currentUser as any).addresses);
+    }
+  }, [currentUser?.id, (currentUser as any)?.addresses]);
 
   const [addressSuccessMessage, setAddressSuccessMessage] = useState<string | null>(null);
   const [isAddingAddress, setIsAddingAddress] = useState(false);
@@ -542,7 +524,7 @@ export const ProfileView: React.FC = () => {
   // Sincronizar direcciones en localStorage y asegurar dirección predeterminada
   useEffect(() => {
     localStorage.setItem('nolimits_user_addresses', JSON.stringify(addresses));
-    const defaultAddr = addresses.find(a => a.isDefault) || addresses[0];
+    const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
     if (defaultAddr) {
       localStorage.setItem('nolimits_default_address', JSON.stringify(defaultAddr));
     }
@@ -584,7 +566,7 @@ export const ProfileView: React.FC = () => {
       return;
     }
     setIsAddingAddress(false);
-    const target = addresses.find(a => a.isDefault) || addresses[0];
+    const target = addresses.find((a) => a.isDefault) || addresses[0];
     handleStartEdit(target);
   };
 
@@ -613,14 +595,18 @@ export const ProfileView: React.FC = () => {
     setNewAddrIsWithoutNumber(false);
   };
 
-  const handleSetDefaultAddress = (addressId: string) => {
-    const updated = addresses.map(a => ({
+  const handleSetDefaultAddress = (addressId: string, customList?: UserAddress[]) => {
+    const sourceList = customList || addresses;
+    const updated = sourceList.map((a) => ({
       ...a,
       isDefault: a.id === addressId
     }));
     setAddresses(updated);
 
-    const selected = updated.find(a => a.id === addressId);
+    // Persistir en MongoDB vía AuthContext
+    updateProfile({ addresses: updated } as any);
+
+    const selected = updated.find((a) => a.id === addressId);
     if (selected) {
       localStorage.setItem('nolimits_default_address', JSON.stringify(selected));
 
@@ -645,20 +631,22 @@ export const ProfileView: React.FC = () => {
         // ignore
       }
 
-      const displayLabel = selected.alias || (selected.street ? `${selected.street} #${selected.number}` : 'Dirección');
-      setAddressSuccessMessage(`✓ "${displayLabel}" establecida como predeterminada e inyectada al Checkout.`);
+      const displayLabel =
+        selected.alias || (selected.street ? `${selected.street} #${selected.number}` : 'Dirección');
+      setAddressSuccessMessage(
+        `✓ "${displayLabel}" establecida como predeterminada y guardada en MongoDB.`
+      );
       setTimeout(() => setAddressSuccessMessage(null), 3500);
     }
   };
 
   const handleDeleteAddress = (addressId: string) => {
-    const addrToDelete = addresses.find(a => a.id === addressId);
+    const addrToDelete = addresses.find((a) => a.id === addressId);
     if (!addrToDelete) return;
-    if (addresses.length <= 1) {
-      alert('Debes conservar al menos una dirección registrada para despachos.');
-      return;
-    }
-    const displayLabel = addrToDelete.alias || (addrToDelete.street ? `${addrToDelete.street} #${addrToDelete.number}` : 'esta dirección');
+
+    const displayLabel =
+      addrToDelete.alias ||
+      (addrToDelete.street ? `${addrToDelete.street} #${addrToDelete.number}` : 'esta dirección');
     const confirmed = window.confirm(`¿Deseas eliminar la dirección "${displayLabel}"?`);
     if (!confirmed) return;
 
@@ -666,12 +654,16 @@ export const ProfileView: React.FC = () => {
       setEditingAddressId(null);
     }
 
-    let updated = addresses.filter(a => a.id !== addressId);
+    const updated = addresses.filter((a) => a.id !== addressId);
     if (addrToDelete.isDefault && updated.length > 0) {
-      updated = updated.map((a, idx) => ({ ...a, isDefault: idx === 0 }));
-      handleSetDefaultAddress(updated[0].id);
+      handleSetDefaultAddress(updated[0].id, updated);
+      return;
     }
+
     setAddresses(updated);
+    updateProfile({ addresses: updated } as any);
+    setAddressSuccessMessage(`✓ Dirección "${displayLabel}" eliminada de MongoDB.`);
+    setTimeout(() => setAddressSuccessMessage(null), 3500);
   };
 
   const handleSaveAddress = (e: React.FormEvent) => {
@@ -680,15 +672,19 @@ export const ProfileView: React.FC = () => {
       alert('Por favor ingresa el nombre o alias de la dirección (máx 30 caracteres).');
       return;
     }
-    if (!newAddrStreet.trim() || (!newAddrIsWithoutNumber && !newAddrNumber.trim()) || !newAddrComuna.trim()) {
+    if (
+      !newAddrStreet.trim() ||
+      (!newAddrIsWithoutNumber && !newAddrNumber.trim()) ||
+      !newAddrComuna.trim()
+    ) {
       alert('Por favor completa calle, número (o marca Calle sin número) y comuna.');
       return;
     }
 
     const finalAlias = newAddrAlias.trim().slice(0, 30);
     const finalNumber = newAddrIsWithoutNumber ? 'S/N' : newAddrNumber.trim();
-    const recipient = currentUser?.name || 'Valeria Gallardo';
-
+    const recipient =
+      currentUser?.name || `${profileFirstName} ${profileLastName}`.trim() || 'Cliente';
     const resolvedAddrRegion = findRegionByCommune(newAddrComuna.trim());
 
     if (editingAddressId) {
@@ -711,13 +707,16 @@ export const ProfileView: React.FC = () => {
         return newAddrIsDefault ? { ...addr, isDefault: false } : addr;
       });
 
-      setAddresses(updated);
       if (newAddrIsDefault) {
-        handleSetDefaultAddress(editingAddressId);
+        handleSetDefaultAddress(editingAddressId, updated);
+      } else {
+        setAddresses(updated);
+        updateProfile({ addresses: updated } as any);
       }
+
       setEditingAddressId(null);
       setNewAddrAlias('');
-      setAddressSuccessMessage(`✓ Dirección "${finalAlias}" actualizada con éxito.`);
+      setAddressSuccessMessage(`✓ Dirección "${finalAlias}" actualizada en MongoDB.`);
       setTimeout(() => setAddressSuccessMessage(null), 3500);
       return;
     }
@@ -734,18 +733,20 @@ export const ProfileView: React.FC = () => {
       city: newAddrComuna.trim(),
       region: resolvedAddrRegion,
       postalCode: newAddrPostalCode.trim() || undefined,
+      phone: profilePhone || currentUser?.phone || '',
       notes: newAddrNotes.trim() || undefined,
       isDefault: newAddrIsDefault || addresses.length === 0
     };
 
-    let updatedAddresses = [...addresses];
+    const updatedAddresses = newAddress.isDefault
+      ? [...addresses.map((a) => ({ ...a, isDefault: false })), newAddress]
+      : [...addresses, newAddress];
+
     if (newAddress.isDefault) {
-      updatedAddresses = updatedAddresses.map(a => ({ ...a, isDefault: false }));
-      updatedAddresses.push(newAddress);
-      handleSetDefaultAddress(newId);
+      handleSetDefaultAddress(newId, updatedAddresses);
     } else {
-      updatedAddresses.push(newAddress);
       setAddresses(updatedAddresses);
+      updateProfile({ addresses: updatedAddresses } as any);
     }
 
     setNewAddrAlias('');
@@ -757,10 +758,10 @@ export const ProfileView: React.FC = () => {
     setNewAddrNotes('');
     setNewAddrIsDefault(false);
     setIsAddingAddress(false);
-    setAddressSuccessMessage(`✓ Nueva dirección "${finalAlias}" registrada con éxito.`);
+    setAddressSuccessMessage(`✓ Nueva dirección "${finalAlias}" guardada en MongoDB.`);
     setTimeout(() => setAddressSuccessMessage(null), 3500);
   };
-
+ 
   // =========================================================================
   // SINCRONIZACIÓN DE PRODUCTOS Y CATÁLOGO ACTUAL CON ÓRDENES Y DEVOLUCIONES
   // =========================================================================
