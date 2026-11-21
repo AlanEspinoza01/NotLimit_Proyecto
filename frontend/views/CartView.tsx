@@ -129,9 +129,9 @@ export const CartView: React.FC = () => {
     if (initialSavedCheckout?.customerFirstName) {
       return initialSavedCheckout.customerFirstName;
     }
-    if (currentUser.firstName) return currentUser.firstName;
-    if (currentUser.name && currentUser.role !== 'guest') {
-      return currentUser.name.split(' ')[0] || 'Valeria';
+    if (currentUser?.firstName) return currentUser?.firstName;
+    if (currentUser?.name && currentUser?.role !== 'guest') {
+      return currentUser?.name.split(' ')[0] || 'Valeria';
     }
     return 'Valeria';
   });
@@ -140,9 +140,9 @@ export const CartView: React.FC = () => {
     if (initialSavedCheckout?.customerLastName) {
       return initialSavedCheckout.customerLastName;
     }
-    if (currentUser.lastName) return currentUser.lastName;
-    if (currentUser.name && currentUser.role !== 'guest') {
-      const parts = currentUser.name.split(' ');
+    if (currentUser?.lastName) return currentUser?.lastName;
+    if (currentUser?.name && currentUser?.role !== 'guest') {
+      const parts = currentUser?.name.split(' ');
       return parts.length > 1 ? parts.slice(1).join(' ') : 'Gallardo';
     }
     return 'Gallardo';
@@ -150,7 +150,7 @@ export const CartView: React.FC = () => {
 
   const [customerRutRaw, setCustomerRutRaw] = useState<string>(() => {
     const source =
-      initialSavedCheckout?.customerRut || currentUser.rut || '198765432';
+      initialSavedCheckout?.customerRut || currentUser?.rut || '198765432';
     return source.replace(/[^0-9kK]/g, '').slice(0, 9);
   });
 
@@ -158,7 +158,7 @@ export const CartView: React.FC = () => {
     const source =
       initialSavedCheckout?.customerPhone ||
       initialDefaultAddr?.phone ||
-      currentUser.phone ||
+      currentUser?.phone ||
       '91234567';
     const digits = source.replace(/\D/g, '');
     if (digits.startsWith('569') && digits.length >= 11) {
@@ -170,7 +170,7 @@ export const CartView: React.FC = () => {
   const [customerEmail, setCustomerEmail] = useState<string>(() => {
     const candidate =
       initialSavedCheckout?.customerEmail ||
-      currentUser.email ||
+      currentUser?.email ||
       'valeria.k@gmail.com';
     return candidate.endsWith('@gmail.com') ? candidate : 'valeria.k@gmail.com';
   });

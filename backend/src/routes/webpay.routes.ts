@@ -1,0 +1,17 @@
+import {Router} from 'express';
+import rateLimit from 'express-rate-limit';
+import validateRequestOrigin from '../middleware/validateRequestOrigin';
+import {redeemPaymentCoupon,startWebpay,webpayReturn,queryWebpayResult,reconcileWebpay} from '../controllers/webpay.controller';
+import authenticateUser from '../middleware/authenticateUser';
+import {getPublicCouponCatalog,getMyPaymentCoupons} from '../controllers/coupon.controller';
+const router=Router();
+const limiter=rateLimit({windowMs:15*60*1000,limit:25,standardHeaders:'draft-7',legacyHeaders:false});
+router.get('/coupons/catalog',getPublicCouponCatalog);
+router.get('/coupons/mine',authenticateUser,getMyPaymentCoupons);
+router.post('/coupons/redeem',authenticateUser,limiter,validateRequestOrigin,redeemPaymentCoupon);
+router.post('/webpay/start',limiter,validateRequestOrigin,startWebpay);
+router.get('/webpay/return',webpayReturn);
+router.post('/webpay/return',webpayReturn);
+router.get('/webpay/result',queryWebpayResult);
+router.post('/webpay/reconcile',reconcileWebpay);
+export default router;

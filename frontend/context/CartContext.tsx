@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { useAuth } from './AuthContext';
 import { CartItem, Product, ProductColor } from '../types';
 import { getProductWeightGrams, getWeightTierInfo } from '../services/shippingQuotesEngine';
 import {
   RedeemedUserCoupon,
-  STORAGE_ACTIVE_CART_COUPON_KEY,
-  validateRedeemedCouponForCart
+  validateRedeemedCouponForCart, clearCouponCache, refreshCouponsFromBackend
 } from '../services/couponsService';
 
 interface CartContextType {
@@ -33,6 +33,18 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { currentUser, isLoading, isAuthenticated } = useAuth();
+  const [couponRevision, setCouponRevision] = useState(0);
+  useEffect(() => {
+    if (isLoading) return;
+    clearCouponCache(currentUser?.id || '');
+    void refreshCouponsFromBackend(currentUser?.id || '').catch(e => console.error('No se pudo cargar billetera de cupones', e));
+  }, [isLoading, isAuthenticated, currentUser?.id]);
+  useEffect(() => {
+    const sync = () => setCouponRevision(value=>value+1);
+    window.addEventListener('nl_coupons_updated',sync);
+    return () => window.removeEventListener('nl_coupons_updated',sync);
+  }, []);
   const [items, setItems] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem('nolimits_cart');
     if (saved) {
@@ -47,13 +59,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [pointsApplied, setPointsApplied] = useState<number>(0);
 
-  const [appliedCouponCode, setAppliedCouponCode] = useState<string>(() => {
-    try {
-      return localStorage.getItem(STORAGE_ACTIVE_CART_COUPON_KEY) || '';
-    } catch {
-      return '';
-    }
-  });
+  // Cupón seleccionado en memoria; su validez se comprueba con MongoDB.
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string>('');
 
   useEffect(() => {
     localStorage.setItem('nolimits_cart', JSON.stringify(items));
@@ -117,15 +124,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setItems([]);
     setPointsApplied(0);
     setAppliedCouponCode('');
-    try {
-      localStorage.removeItem(STORAGE_ACTIVE_CART_COUPON_KEY);
-    } catch {
-      // ignore
-    }
+
   };
 
-  const applyLoyaltyPoints = (points: number) => {
-    setPointsApplied(points);
+  const applyLoyaltyPoints = (_points: number) => {
+    // Los puntos solo se canjean por cupones autorizados por MongoDB.
+    setPointsApplied(0);
   };
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -148,7 +152,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { valid: false, coupon: undefined, calculatedDiscountClp: 0 };
     }
     return validateRedeemedCouponForCart(appliedCouponCode, subtotalAfterDirectDiscount);
-  }, [appliedCouponCode, subtotalAfterDirectDiscount]);
+  }, [appliedCouponCode, subtotalAfterDirectDiscount, couponRevision]);
 
   const appliedCoupon: RedeemedUserCoupon | null =
     couponValidation.valid && couponValidation.coupon ? couponValidation.coupon : null;
@@ -168,11 +172,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
     setAppliedCouponCode(result.coupon.code);
-    try {
-      localStorage.setItem(STORAGE_ACTIVE_CART_COUPON_KEY, result.coupon.code);
-    } catch {
-      // ignore
-    }
+    // No persistir el cupón ni el descuento en almacenamiento controlado por el cliente.
     return {
       success: true,
       message: `✓ Cupón "${result.coupon.title}" (${result.coupon.code}) aplicado correctamente.`
@@ -181,15 +181,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const removeCoupon = () => {
     setAppliedCouponCode('');
-    try {
-      localStorage.removeItem(STORAGE_ACTIVE_CART_COUPON_KEY);
-    } catch {
-      // ignore
-    }
+
   };
 
   // 1 point = $10 CLP discount
-  const loyaltyPointsDiscount = Math.min(pointsApplied * 10, subtotal * 0.4);
+  const loyaltyPointsDiscount = 0; // No se permite pagar directamente con puntos.
 
   const discount = directDiscount + loyaltyPointsDiscount + couponDiscount;
 
@@ -251,4 +247,3 @@ export const useCart = () => {
   }
   return context;
 };
-

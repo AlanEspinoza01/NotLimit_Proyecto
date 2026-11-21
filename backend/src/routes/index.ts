@@ -5,11 +5,11 @@ import sessionPolicyRoutes from './sessionPolicyRoutes';
 import reviewRouter from './review.routes';
 import adminRouter from './admin.routes';
 import authenticateUser from '../middleware/authenticateUser';
+import webpayRouter from './webpay.routes';
 import {
  getProducts,
   getBranches,
   getStoreSettings,
-  createPublicOrder,
   getMyOrders
 } from '../controllers/admin.controller';
 
@@ -21,8 +21,10 @@ apiRouter.get('/health', getHealthStatus);
 apiRouter.get('/products', getProducts);
 apiRouter.get('/branches', getBranches);
 apiRouter.get('/store-settings', getStoreSettings);
-apiRouter.post('/orders/checkout', createPublicOrder);
+// Legacy checkout disabled: it confirmed unpaid transactions. Use Webpay routes.
 apiRouter.get('/orders/my-orders', authenticateUser, getMyOrders);
+
+apiRouter.use('/payments', webpayRouter);
 
 // Módulo de Autenticación y Usuarios (/api/auth/*)
 apiRouter.use('/auth', authRouter);

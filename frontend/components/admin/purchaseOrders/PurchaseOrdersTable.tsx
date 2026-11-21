@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   ShoppingBag,
@@ -59,8 +60,12 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
 }) => {
   return (
     <>
+      {/* En pantallas intermedias la tabla se desplaza dentro de este bloque. */}
+      <p className="nl-orders-table-hint" aria-hidden="true">
+        Desplázate horizontalmente dentro de la tabla para ver todas las columnas y acciones.
+      </p>
       {/* TABLA PRINCIPAL DE ÓRDENES DE COMPRA */}
-      <div className="nl-orders-table-scroll border border-gray-400 bg-white shadow-xs">
+      <div className="nl-orders-table-scroll border border-gray-400 bg-white shadow-xs" role="region" aria-label="Listado de órdenes de compra" tabIndex={0}>
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-[#ece9d8] border-b-2 border-gray-400 text-gray-900 font-bold text-[11px]">
             <tr>
@@ -76,7 +81,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
           </thead>
           <tbody className="divide-y divide-gray-200">
             {filteredAndSortedOrders.length === 0 ? (
-              <tr>
+              <tr className="nl-orders-empty-row">
                 <td colSpan={8} className="p-8 text-center text-gray-500">
                   <ShoppingBag className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                   <p className="font-bold text-sm text-gray-700">
@@ -108,9 +113,9 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
 
                 return (
                   <React.Fragment key={ord.id}>
-                    <tr className="hover:bg-blue-50/70 transition-colors">
+                    <tr className="nl-orders-order-row hover:bg-blue-50/70 transition-colors">
                       {/* 1. ORDEN */}
-                      <td className="p-2.5 border-r border-gray-200 align-middle">
+                      <td data-label="Orden" className="p-2.5 border-r border-gray-200 align-middle">
                         <div className="font-mono font-black text-xs text-[#003c74] flex items-center gap-1">
                           <Receipt className="w-3.5 h-3.5 text-blue-700" />
                           <span>{ord.orderNumber}</span>
@@ -130,7 +135,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
                       </td>
 
                       {/* 2. CLIENTE (Nombre y Teléfono) */}
-                      <td className="p-2.5 border-r border-gray-200 align-middle">
+                      <td data-label="Cliente / contacto" className="p-2.5 border-r border-gray-200 align-middle">
                         <div className="font-bold text-gray-900 text-xs flex items-center gap-1">
                           <User className="w-3.5 h-3.5 text-blue-700 shrink-0" />
                           <span>{ord.customerName}</span>
@@ -150,7 +155,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
                       </td>
 
                       {/* 3. MODALIDAD DE ENTREGA & SUCURSAL */}
-                      <td className="p-2.5 border-r border-gray-200 align-middle">
+                      <td data-label="Entrega y sucursal" className="p-2.5 border-r border-gray-200 align-middle">
                         <div className="flex items-center gap-1.5 font-bold text-[11px] text-gray-900">
                           {isShipping ? (
                             <span className="flex items-center gap-1 text-purple-900 bg-purple-50 px-1.5 py-0.5 border border-purple-300 rounded-xs">
@@ -207,7 +212,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
                       </td>
 
                       {/* 4. FECHA */}
-                      <td className="p-2.5 border-r border-gray-200 align-middle font-mono text-[11px] text-gray-700">
+                      <td data-label="Fecha" className="p-2.5 border-r border-gray-200 align-middle font-mono text-[11px] text-gray-700">
                         <div className="flex items-center gap-1 font-bold text-gray-900">
                           <Calendar className="w-3 h-3 text-gray-500" />
                           <span>{ord.date.split(' ')[0]}</span>
@@ -218,7 +223,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
                       </td>
 
                       {/* 5. TOTAL */}
-                      <td className="p-2.5 border-r border-gray-200 text-right align-middle">
+                      <td data-label="Total" className="p-2.5 border-r border-gray-200 text-right align-middle">
                         <div className="font-mono font-black text-sm text-gray-900">
                           ${ord.total.toLocaleString('es-CL')}
                         </div>
@@ -228,7 +233,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
                       </td>
 
                       {/* 6. ESTADO */}
-                      <td className="p-2.5 border-r border-gray-200 align-middle">
+                      <td data-label="Estado del pedido" className="p-2.5 border-r border-gray-200 align-middle">
                         <div className="space-y-1">
                           <span
                             className={`inline-block text-[10px] uppercase tracking-wider px-2 py-0.5 border rounded-xs ${statusMeta.badgeClass}`}
@@ -236,14 +241,23 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
                           >
                             {ord.status}
                           </span>
-                          <p className="text-[9px] text-gray-600 leading-tight">
-                            {statusMeta.description}
-                          </p>
+                          <span className={`inline-block text-[10px] border px-2 py-0.5 font-semibold ${
+                            ord.paymentStatus === 'CONFIRMED' ? 'bg-green-50 border-green-400 text-green-900'
+                            : ord.paymentStatus === 'PENDING' ? 'bg-amber-50 border-amber-400 text-amber-950'
+                            : 'bg-rose-50 border-rose-400 text-rose-950'
+                          }`}>
+                            {ord.paymentStatus === 'CONFIRMED' ? 'Pago confirmado'
+                              : ord.paymentStatus === 'PENDING' ? 'Pago pendiente'
+                              : ord.paymentStatus === 'REFUNDED' ? 'Reembolsado'
+                              : ord.paymentStatus === 'REJECTED' ? 'Pago rechazado / anulado'
+                              : 'Sin confirmación registrada'}
+                          </span>
+                          <p className="text-[9px] text-gray-600 leading-tight">{statusMeta.description}</p>
                         </div>
                       </td>
 
                       {/* 7. MÉTODO DE PAGO */}
-                      <td className="p-2.5 border-r border-gray-200 text-center align-middle">
+                      <td data-label="Método de pago" className="p-2.5 border-r border-gray-200 text-center align-middle">
                         <span
                           className={`inline-block font-mono font-bold text-[11px] px-2 py-0.5 border rounded-xs ${getPaymentMethodBadge(
                             ord.paymentMethod
@@ -256,12 +270,13 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
                             ? 'Solo por transferencias'
                             : ord.paymentMethod === 'Sistema POS'
                             ? 'Pago manual (Sistema POS)'
-                            : 'Pasarela directa (Solicitud recibida)'}
+                            : ord.paymentMethod === 'Otro' ? 'Método no identificado'
+                            : 'Pasarela electrónica'}
                         </div>
                       </td>
 
                       {/* 8. PRODUCTOS / ACCIONES */}
-                      <td className="p-2.5 text-center align-middle">
+                      <td data-label="Productos y acciones" className="p-2.5 text-center align-middle">
                         <div className="flex flex-col items-stretch gap-1.5">
                           {/* Botón desplegable de Productos */}
                           <button
@@ -283,7 +298,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
 
                           {/* ACCIONES SEGÚN EL ESTADO ACTUAL DE LA ORDEN */}
                           {/* 1) Estado: "Pendiente de Pago" */}
-                          {ord.status === 'Pendiente de Pago' && (
+                          {ord.status === 'Pendiente de Pago' && (ord.paymentMethod === 'Sistema POS' || ord.paymentMethod === 'Khipu') && (
                             <div className="flex flex-col gap-1">
                               <button
                                 type="button"
@@ -630,8 +645,11 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenDeleteOrderModal(ord)}
-                            className="winxp-button text-[11px] py-1 px-2 font-bold text-red-900 bg-red-50 hover:bg-red-100 border-red-400 flex items-center justify-center gap-1 w-full"
-                            title="Eliminar esta orden de compra"
+                            disabled={ord.paymentMethod === 'Webpay' || ord.paymentMethod === 'Mercado Pago'}
+                            className="winxp-button text-[11px] py-1 px-2 font-bold text-red-900 bg-red-50 hover:bg-red-100 border-red-400 flex items-center justify-center gap-1 w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={ord.paymentMethod === 'Webpay' || ord.paymentMethod === 'Mercado Pago'
+                              ? 'Las órdenes de pasarelas electrónicas conservan su registro para auditoría'
+                              : 'Eliminar esta orden de compra'}
                           >
                             <Trash2 className="w-3 h-3 text-red-700 shrink-0" />
                             <span>Eliminar</span>
@@ -642,7 +660,7 @@ export const PurchaseOrdersTable: React.FC<PurchaseOrdersTableProps> = ({
 
                     {/* FILA EXPANDIBLE: PRODUCTOS COMPRADOS */}
                     {isExpanded && (
-                      <tr className="bg-blue-50/40 border-b-2 border-blue-200">
+                      <tr className="nl-orders-expanded-row bg-blue-50/40 border-b-2 border-blue-200">
                         <td colSpan={8} className="p-3">
                           <div className="p-2.5 bg-white border border-blue-300 rounded-xs shadow-2xs space-y-2">
                             <div className="flex items-center justify-between border-b border-gray-200 pb-1.5">

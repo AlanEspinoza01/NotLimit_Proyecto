@@ -287,3 +287,34 @@ body {
     --winxp-container-padding: 2rem;
   }
 }
+
+/* ========================================================================== 
+   CAPA COMPARTIDA: ANCHO DISPONIBLE REAL DEL ESCRITORIO
+   El ancho de una ventana administrativa puede ser menor que el viewport:
+   el sidebar y las herramientas del navegador consumen espacio.
+   ========================================================================== */
+#root,
+#root > div,
+#root main,
+.winxp-window,
+.winxp-content-pane {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Evita que contenido multimedia fijo ensanche las ventanas XP. */
+.winxp-content-pane img,
+.winxp-content-pane video,
+.winxp-content-pane canvas,
+.winxp-content-pane iframe {
+  max-width: 100%;
+}
+
+/* Entradas y desplegables siempre dentro de su columna. */
+.winxp-content-pane input,
+.winxp-content-pane select,
+.winxp-content-pane textarea {
+  max-width: 100%;
+  box-sizing: border-box;
+}

@@ -10,7 +10,7 @@ import {
   Search
 } from 'lucide-react';
 import { Branch } from '../../../types';
-import { PurchaseOrderRecord } from './purchaseOrdersTypes';
+import { PurchaseOrderRecord, type OrderPaymentStatus } from './purchaseOrdersTypes';
 
 interface PurchaseOrdersFiltersBarProps {
   branchScopedOrders: PurchaseOrderRecord[];
@@ -89,41 +89,18 @@ export const PurchaseOrdersFiltersBar: React.FC<PurchaseOrdersFiltersBarProps> =
         <div>
           <label className="block text-[11px] font-bold text-gray-800 mb-1 flex items-center gap-1">
             <Tag className="w-3.5 h-3.5 text-indigo-700" />
-            <span>Filtrar por Estado:</span>
+            <span>Estado del pago:</span>
           </label>
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="w-full winxp-input text-xs py-1 px-2 font-medium bg-white border border-[#7f9db9]"
           >
-            <option value="all">Todos los Estados ({branchScopedOrders.length})</option>
-            <optgroup label="--- Transferencias (Sistema POS / Khipu) ---">
-              <option value="Pendiente de Pago">Pendiente de Pago</option>
-              <option value="Pago Confirmando">Pago Confirmando</option>
-              <option value="Pago Anulado">Pago Anulado</option>
-            </optgroup>
-            <optgroup label="--- Flujo de Envío a Domicilio y Retiro ---">
-              <option value="Solicitud recibida">Solicitud recibida</option>
-              <option value="En Preparación">En Preparación</option>
-              <option value="En transito">En transito</option>
-              <option value="Entregado">Entregado (Exclusivo Envío a Domicilio)</option>
-              <option value="Listo para el retiro de sucursal">
-                Listo para el retiro de sucursal (Exclusivo Retiro)
-              </option>
-              <option value="Retirado">Retirado (Exclusivo Retiro en Sucursal)</option>
-            </optgroup>
-            <optgroup label="--- Estados de Devolución ---">
-              <option value="Solicitud de Devolución recibida">
-                Solicitud de Devolución recibida
-              </option>
-              <option value="Revisión de equipo">Revisión de equipo</option>
-              <option value="Aprobada por Admin">Aprobada por Admin</option>
-              <option value="Rechazada por Admin">Rechazada por Admin</option>
-              <option value="Envió a punto">Envió a punto (Exclusivo Devolución Domicilio)</option>
-              <option value="Retiro Presencial">
-                Retiro Presencial (Exclusivo Devolución Sucursal)
-              </option>
-            </optgroup>
+            <option value="all">Todos los pagos ({branchScopedOrders.length})</option>
+            <option value="PENDING">Pendiente de pago</option>
+            <option value="CONFIRMED">Pago confirmado</option>
+            <option value="REJECTED">Pago rechazado o anulado</option>
+            <option value="REFUNDED">Pago reembolsado</option>
           </select>
         </div>
 
@@ -225,117 +202,29 @@ export const PurchaseOrdersFiltersBar: React.FC<PurchaseOrdersFiltersBarProps> =
         </div>
       </div>
 
-      {/* Chips Rápidos de Filtrado */}
+      {/* Los atajos consultan paymentStatus. El avance de entrega sigue en la tabla. */}
       <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-300">
-        <span className="text-[10px] font-bold text-gray-700 uppercase">Filtros Rápidos:</span>
-        <button
-          type="button"
-          data-force-white={isAllQuickFilterActive ? 'true' : undefined}
-          onClick={() => {
-            setSelectedStatus('all');
-            setSelectedDeliveryType('all');
-            setSelectedBranch('all');
-            setSelectedPaymentMethod('all');
-            setSearchQuery('');
-          }}
-          className={`text-[11px] px-2 py-0.5 border font-semibold ${
-            isAllQuickFilterActive
-              ? 'bg-blue-700 text-white border-blue-900 shadow-xs'
-              : 'bg-white text-gray-700 border-gray-400 hover:bg-gray-100'
-          }`}
-        >
-          Todas ({branchScopedOrders.length})
+        <span className="text-[10px] font-bold text-gray-700 uppercase">Pagos:</span>
+        <button type="button" onClick={() => {
+          setSelectedStatus('all');
+          setSelectedDeliveryType('all');
+          setSelectedBranch('all');
+          setSelectedPaymentMethod('all');
+          setSearchQuery('');
+        }} className={`text-[11px] px-2 py-0.5 border font-semibold ${isAllQuickFilterActive ? 'bg-blue-700 text-white border-blue-900' : 'bg-white text-gray-800 border-gray-400'}`}>
+          Todos ({branchScopedOrders.length})
         </button>
-        <button
-          type="button"
-          data-force-white={selectedStatus === 'Pendiente de Pago' ? 'true' : undefined}
-          onClick={() => setSelectedStatus('Pendiente de Pago')}
-          className={`text-[11px] px-2 py-0.5 border font-semibold ${
-            selectedStatus === 'Pendiente de Pago'
-              ? 'bg-amber-600 text-white border-amber-800 shadow-xs'
-              : 'bg-white text-amber-900 border-gray-400 hover:bg-amber-50'
-          }`}
-        >
-          Pendiente de Pago (
-          {branchScopedOrders.filter((o) => o.status === 'Pendiente de Pago').length})
-        </button>
-        <button
-          type="button"
-          data-force-white={selectedStatus === 'Solicitud recibida' ? 'true' : undefined}
-          onClick={() => setSelectedStatus('Solicitud recibida')}
-          className={`text-[11px] px-2 py-0.5 border font-semibold ${
-            selectedStatus === 'Solicitud recibida'
-              ? 'bg-cyan-700 text-white border-cyan-900 shadow-xs'
-              : 'bg-white text-cyan-900 border-gray-400 hover:bg-cyan-50'
-          }`}
-        >
-          Solicitud recibida (
-          {branchScopedOrders.filter((o) => o.status === 'Solicitud recibida').length})
-        </button>
-        <button
-          type="button"
-          data-force-white={selectedStatus === 'En Preparación' ? 'true' : undefined}
-          onClick={() => setSelectedStatus('En Preparación')}
-          className={`text-[11px] px-2 py-0.5 border font-semibold ${
-            selectedStatus === 'En Preparación'
-              ? 'bg-indigo-700 text-white border-indigo-900 shadow-xs'
-              : 'bg-white text-indigo-900 border-gray-400 hover:bg-indigo-50'
-          }`}
-        >
-          En Preparación ({branchScopedOrders.filter((o) => o.status === 'En Preparación').length})
-        </button>
-        <button
-          type="button"
-          data-force-white={selectedStatus === 'En transito' ? 'true' : undefined}
-          onClick={() => setSelectedStatus('En transito')}
-          className={`text-[11px] px-2 py-0.5 border font-semibold ${
-            selectedStatus === 'En transito'
-              ? 'bg-purple-700 text-white border-purple-900 shadow-xs'
-              : 'bg-white text-purple-900 border-gray-400 hover:bg-purple-50'
-          }`}
-        >
-          En transito ({branchScopedOrders.filter((o) => o.status === 'En transito').length})
-        </button>
-        <button
-          type="button"
-          data-force-white={
-            selectedStatus === 'Listo para el retiro de sucursal' ? 'true' : undefined
-          }
-          onClick={() => setSelectedStatus('Listo para el retiro de sucursal')}
-          className={`text-[11px] px-2 py-0.5 border font-semibold ${
-            selectedStatus === 'Listo para el retiro de sucursal'
-              ? 'bg-teal-700 text-white border-teal-900 shadow-xs'
-              : 'bg-white text-teal-900 border-gray-400 hover:bg-teal-50'
-          }`}
-        >
-          Listo para retiro (
-          {branchScopedOrders.filter((o) => o.status === 'Listo para el retiro de sucursal').length}
-          )
-        </button>
-        <button
-          type="button"
-          data-force-white={selectedStatus === 'Entregado' ? 'true' : undefined}
-          onClick={() => setSelectedStatus('Entregado')}
-          className={`text-[11px] px-2 py-0.5 border font-semibold ${
-            selectedStatus === 'Entregado'
-              ? 'bg-emerald-700 text-white border-emerald-900 shadow-xs'
-              : 'bg-white text-emerald-900 border-gray-400 hover:bg-emerald-50'
-          }`}
-        >
-          Entregado ({branchScopedOrders.filter((o) => o.status === 'Entregado').length})
-        </button>
-        <button
-          type="button"
-          data-force-white={selectedStatus === 'Retirado' ? 'true' : undefined}
-          onClick={() => setSelectedStatus('Retirado')}
-          className={`text-[11px] px-2 py-0.5 border font-semibold ${
-            selectedStatus === 'Retirado'
-              ? 'bg-green-700 text-white border-green-900 shadow-xs'
-              : 'bg-white text-green-900 border-gray-400 hover:bg-green-50'
-          }`}
-        >
-          Retirado ({branchScopedOrders.filter((o) => o.status === 'Retirado').length})
-        </button>
+        {([
+          ['PENDING', 'Pendientes'],
+          ['CONFIRMED', 'Confirmados'],
+          ['REJECTED', 'Rechazados / anulados'],
+          ['REFUNDED', 'Reembolsados']
+        ] as const satisfies readonly (readonly [OrderPaymentStatus, string])[]).map(([value, label]) => (
+          <button key={value} type="button" onClick={() => setSelectedStatus(value)}
+            className={`text-[11px] px-2 py-0.5 border font-semibold ${selectedStatus === value ? 'bg-blue-700 text-white border-blue-900' : 'bg-white text-gray-800 border-gray-400 hover:bg-gray-100'}`}>
+            {label} ({branchScopedOrders.filter(o => o.paymentStatus === value).length})
+          </button>
+        ))}
       </div>
     </div>
   );

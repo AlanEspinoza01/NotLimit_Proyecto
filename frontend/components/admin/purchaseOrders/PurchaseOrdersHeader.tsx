@@ -159,14 +159,14 @@ export const PurchaseOrdersHeader: React.FC<PurchaseOrdersHeaderProps> = ({
         <div className="p-2.5 bg-white border border-[#7f9db9] shadow-xs">
           <div className="flex items-center justify-between text-gray-600">
             <span className="font-bold text-[10px] uppercase tracking-wider text-emerald-900">
-              Total Facturado
+              Total de pagos confirmados
             </span>
             <DollarSign className="w-4 h-4 text-emerald-700" />
           </div>
           <div className="text-xl font-black text-emerald-800 mt-1">
             ${summaryKPIs.totalRevenue.toLocaleString('es-CL')}
           </div>
-          <div className="text-[10px] text-gray-500 mt-0.5">Órdenes efectivas no anuladas</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">Órdenes con pago confirmado en MongoDB</div>
         </div>
 
         <div className="p-2.5 bg-white border border-[#7f9db9] shadow-xs">
@@ -180,7 +180,7 @@ export const PurchaseOrdersHeader: React.FC<PurchaseOrdersHeaderProps> = ({
             {summaryKPIs.pendingPaymentCount}{' '}
             <span className="text-xs font-normal text-gray-500">en espera</span>
           </div>
-          <div className="text-[10px] text-gray-500 mt-0.5">Exclusivo Sistema POS y Khipu</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">Todos los medios de pago</div>
         </div>
 
         <div className="p-2.5 bg-white border border-[#7f9db9] shadow-xs">

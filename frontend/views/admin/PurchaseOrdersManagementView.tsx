@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { WindowFrame } from '../../components/layout/WindowFrame';
@@ -6,11 +7,13 @@ import { INITIAL_BRANCHES } from '../../services/mockData';
 import { useAuth } from '../../context/AuthContext';
 import { useBranch } from '../../context/BranchContext';
 import api from '../../api/axios';
+import type { PurchaseReceiptData } from '../../services/receiptExport';
 
 import '../../components/admin/purchaseOrders/PurchaseOrdersManagementView.css';
 import {
   STORAGE_ORDERS_KEY,
   OrderPaymentMethod,
+  OrderPaymentStatus,
   ShippingCourierType,
   PurchaseOrderStatus,
   PurchasedProductItem,
@@ -41,6 +44,7 @@ export {
 
 export type {
   OrderPaymentMethod,
+  OrderPaymentStatus,
   ShippingCourierType,
   PurchaseOrderStatus,
   PurchasedProductItem,
@@ -58,9 +62,9 @@ const normalizeMongoOrderStatus = (doc: any): PurchaseOrderStatus => {
   if (payStatus === 'REJECTED' || rawStatus === 'Pago Anulado' || rawFulfillment === 'Pago Anulado') {
     return 'Pago Anulado';
   }
-  if (payStatus === 'PENDING' || rawStatus === 'Pendiente de Pago' || rawFulfillment === 'Pendiente de Pago') {
-    return 'Pendiente de Pago';
-  }
+  if (payStatus === 'PENDING') return 'Pendiente de Pago';
+  if (payStatus === 'REFUNDED') return 'Reembolsado';
+  if (payStatus === 'CONFIRMED' && [rawFulfillment, rawStatus].every(v => !v || /pendiente de pago/i.test(v))) return 'Solicitud recibida';
 
   // Si fulfillmentStatus tiene un estado logístico más avanzado que 'Pago Confirmando', priorizarlo
   const candidate =
@@ -102,12 +106,12 @@ const normalizeMongoOrderStatus = (doc: any): PurchaseOrderStatus => {
 /// Mapear paymentMethod de MongoDB al tipo OrderPaymentMethod de la vista
 const normalizeMongoPaymentMethod = (rawMethod: string): OrderPaymentMethod => {
   const m = String(rawMethod || '').toLowerCase();
-  if (m.includes('pos') || m.includes('reserva') || m.includes('efectivo') || m.includes('directo')) {
-    return 'Sistema POS';
-  }
+  if (m.includes('webpay') || m.includes('web pay')) return 'Webpay';
   if (m.includes('mercado')) return 'Mercado Pago';
   if (m.includes('khipu') || m.includes('transferencia')) return 'Khipu';
-  return 'WebPay' as OrderPaymentMethod;
+  if (m.includes('pos') || m.includes('reserva') || m.includes('efectivo') || m.includes('directo')) return 'Sistema POS';
+  // No presentar un método desconocido como Webpay por defecto.
+  return 'Otro';
 };
 
 // Mapear courier de MongoDB a ShippingCourierType
@@ -173,9 +177,8 @@ const mapMongoOrderToPurchaseOrderRecord = (
       ? `Retiro Presencial en Sucursal ${pickupBranchName || branchName}`
       : 'Despacho a Domicilio');
 
-  const createdDate = doc.createdAt ? new Date(doc.createdAt) : new Date();
-  const timestamp =
-    doc.timestamp || (!isNaN(createdDate.getTime()) ? createdDate.getTime() : Date.now());
+  const createdDate = new Date(doc.createdAt || doc.date || 0);
+  const timestamp = Number.isFinite(createdDate.getTime()) ? createdDate.getTime() : 0;
 
   const dateStr =
     doc.date ||
@@ -198,6 +201,7 @@ const mapMongoOrderToPurchaseOrderRecord = (
         size: it.size || it.sizes || 'Única',
         quantity: Number(it.quantity ?? 1) || 1,
         price: Number(it.price ?? it.unitPrice ?? 0) || 0,
+        subtotal: (Number(it.price ?? it.unitPrice ?? 0) || 0) * (Number(it.quantity ?? 1) || 1),
         image:
           it.image ||
           'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&auto=format&fit=crop&q=80'
@@ -236,6 +240,9 @@ const mapMongoOrderToPurchaseOrderRecord = (
     subtotal: Number(doc.subtotal ?? doc.total ?? 0) || 0,
     shippingCost: Number(doc.shippingCost ?? 0) || 0,
     total: Number(doc.total ?? 0) || 0,
+    confirmedRevenue: Number(doc.confirmedRevenue ?? 0) || 0,
+    paymentStatus: (['PENDING','CONFIRMED','REJECTED','REFUNDED'].includes(String(doc.paymentStatus || '').toUpperCase())
+      ? String(doc.paymentStatus).toUpperCase() : 'PENDING') as OrderPaymentStatus,
     status,
     paymentMethod: normalizeMongoPaymentMethod(doc.paymentMethod),
     registeredByAdmin: doc.registeredByAdmin || 'Sistema Web',
@@ -287,6 +294,27 @@ export const PurchaseOrdersManagementView: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState<PurchaseOrderRecord | null>(null);
+  const [receiptData, setReceiptData] = useState<PurchaseReceiptData | null>(null);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
+
+  // Cada apertura vuelve a consultar MongoDB; nunca usa datos del cache local.
+  useEffect(() => {
+    if (!selectedOrderForDetail) { setReceiptData(null); setReceiptError(''); return; }
+    let active = true;
+    setReceiptData(null);
+    setReceiptError('');
+    setReceiptLoading(true);
+    void api.get(`/admin/orders/${encodeURIComponent(selectedOrderForDetail.id)}/receipt`)
+      .then(response => {
+        if (!active) return;
+        if (!response.data?.success || !response.data?.data) throw new Error('Orden sin detalle verificable');
+        setReceiptData(response.data.data as PurchaseReceiptData);
+      })
+      .catch(() => { if (active) setReceiptError('No se pudo consultar esta orden en MongoDB. Actualiza el listado e inténtalo nuevamente.'); })
+      .finally(() => { if (active) setReceiptLoading(false); });
+    return () => { active = false; };
+  }, [selectedOrderForDetail]);
 
   const [transitShippingModalOrder, setTransitShippingModalOrder] = useState<PurchaseOrderRecord | null>(null);
   const [trackingCodeInput, setTrackingCodeInput] = useState<string>('');
@@ -314,7 +342,7 @@ export const PurchaseOrdersManagementView: React.FC = () => {
           mapMongoOrderToPurchaseOrderRecord(dbOrder, allBranches)
         );
         setOrders(mappedOrders);
-        localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(mappedOrders));
+        // El panel trabaja con MongoDB; no duplicar órdenes ni pagos en localStorage.
       }
     } catch (e) {
       console.error('Error cargando órdenes reales desde MongoDB:', e);
@@ -368,7 +396,7 @@ export const PurchaseOrdersManagementView: React.FC = () => {
   const filteredAndSortedOrders = useMemo(() => {
     return branchScopedOrders
       .filter((ord) => {
-        if (selectedStatus !== 'all' && ord.status !== selectedStatus) return false;
+        if (selectedStatus !== 'all' && ord.paymentStatus !== selectedStatus) return false;
         if (selectedDeliveryType !== 'all' && ord.deliveryType !== selectedDeliveryType) return false;
         if (!isBranchAdmin && selectedBranch !== 'all') {
           const effectiveBranchId = ord.pickupBranchId || ord.branchId;
@@ -416,14 +444,11 @@ export const PurchaseOrdersManagementView: React.FC = () => {
     let returnsCount = 0;
 
     branchScopedOrders.forEach((o) => {
-      if (
-        o.status !== 'Pago Anulado' &&
-        o.status !== 'Rechazada por Admin' &&
-        o.status !== 'Pendiente de Pago'
-      ) {
-        totalRevenue += o.total;
+      // Un avance logístico no acredita dinero; únicamente CONFIRMED cuenta como ingreso.
+      if (o.paymentStatus === 'CONFIRMED') {
+        totalRevenue += o.confirmedRevenue && o.confirmedRevenue > 0 ? o.confirmedRevenue : o.total;
       }
-      if (o.status === 'Pendiente de Pago') pendingPaymentCount++;
+      if (o.paymentStatus === 'PENDING') pendingPaymentCount++;
       if (
         o.status === 'Solicitud de Devolución recibida' ||
         o.status === 'Revisión de equipo' ||
@@ -475,10 +500,15 @@ export const PurchaseOrdersManagementView: React.FC = () => {
       const isCancelled = nextStatus === 'Pago Anulado' || nextStatus === 'Rechazada por Admin';
       const isPending = nextStatus === 'Pendiente de Pago';
 
+      const isManualPayment = targetOrder ? isManualTransferPayment(targetOrder.paymentMethod) : false;
+      const nextPaymentStatus = isManualPayment
+        ? (isCancelled ? 'REJECTED' : isPending ? 'PENDING' : nextStatus === 'Pago Confirmando' ? 'CONFIRMED' : undefined)
+        : undefined;
       const payload = {
         status: nextStatus,
         fulfillmentStatus: nextStatus,
-        paymentStatus: isCancelled ? 'REJECTED' : isPending ? 'PENDING' : 'CONFIRMED',
+        // Los pasos de despacho no alteran el resultado de una pasarela de pago.
+        ...(nextPaymentStatus ? { paymentStatus: nextPaymentStatus } : {}),
         auditNote,
         cancellationReason: isCancelled ? auditNote : undefined,
         trackingNumber: extraFields?.trackingNumber,
@@ -487,34 +517,23 @@ export const PurchaseOrdersManagementView: React.FC = () => {
 
       const response = await api.put(`/admin/orders/${orderId}/status`, payload);
 
-      if (response.data?.success) {
-        const updatedDoc = response.data.data;
-        setOrders((prev) =>
-          prev.map((ord) => {
-            if (ord.id !== orderId) return ord;
-            return {
-              ...ord,
-              ...extraFields,
-              status: nextStatus,
-              notes: auditNote ? `${ord.notes ? ord.notes + ' // ' : ''}${auditNote}` : ord.notes,
-              statusAuditLog: updatedDoc?.statusAuditLog || [
-                ...(ord.statusAuditLog || []),
-                {
-                  status: nextStatus,
-                  timestamp: new Date().toLocaleString('es-CL'),
-                  note: auditNote
-                }
-              ]
-            };
-          })
-        );
-        if (targetOrder) {
-          triggerToast(`✓ Orden ${targetOrder.orderNumber} actualizada a "${nextStatus}" en MongoDB`);
-        }
+      if (response.data?.success && response.data?.data) {
+        // Reflejar exactamente lo que devolvió MongoDB, incluido el estado de
+        // pago y el historial; no asumir que una acción cambió la base de datos.
+        const savedOrder = mapMongoOrderToPurchaseOrderRecord(response.data.data, allBranches);
+        setOrders(prev => prev.map(ord => ord.id === orderId ? savedOrder : ord));
+        triggerToast(`✓ Orden ${savedOrder.orderNumber} actualizada a "${savedOrder.status}"`);
+        return true;
       }
-    } catch (error) {
+      triggerToast('El servidor no confirmó el cambio. Actualiza la lista.');
+      return false;
+    } catch (error: any) {
       console.error('Error actualizando estado en MongoDB:', error);
-      triggerToast('Error de conexión: No se pudo actualizar el estado en MongoDB');
+      // Un 403 o 409 de validación no significa que MongoDB esté desconectado.
+      const message = error?.response?.data?.message || error?.response?.data?.error;
+      triggerToast(message || 'No se pudo actualizar el pedido. Intenta nuevamente.');
+      if (error?.response?.status === 409) void fetchOrders();
+      return false;
     }
   };
 
@@ -550,12 +569,12 @@ export const PurchaseOrdersManagementView: React.FC = () => {
 
   const handleConfirmPendingStatusTransition = async () => {
     if (!pendingStatusTransition) return;
-    await updateOrderStatusDirect(
+    const saved = await updateOrderStatusDirect(
       pendingStatusTransition.order.id,
       pendingStatusTransition.nextStatus,
       pendingStatusTransition.auditNote
     );
-    setPendingStatusTransition(null);
+    if (saved) setPendingStatusTransition(null);
   };
 
   const handleInitiatePassToTransit = (order: PurchaseOrderRecord) => {
@@ -593,7 +612,7 @@ export const PurchaseOrdersManagementView: React.FC = () => {
 
     const fixedCourier: ShippingCourierType = transitShippingModalOrder.shippingCourier || 'Starken';
 
-    await updateOrderStatusDirect(
+    const saved = await updateOrderStatusDirect(
       transitShippingModalOrder.id,
       'En transito',
       `Despachado en tránsito por servicio de transporte ${fixedCourier}. Código de seguimiento: ${cleanCode}`,
@@ -602,10 +621,12 @@ export const PurchaseOrdersManagementView: React.FC = () => {
         shippingCourier: fixedCourier
       }
     );
-    setTransitShippingModalOrder(null);
-    setTrackingCodeInput('');
-    setTransitConfirmWordInput('');
-    setTrackingError('');
+    if (saved) {
+      setTransitShippingModalOrder(null);
+      setTrackingCodeInput('');
+      setTransitConfirmWordInput('');
+      setTrackingError('');
+    }
   };
 
   const handleOpenDeleteOrderModal = (order: PurchaseOrderRecord) => {
@@ -895,8 +916,10 @@ export const PurchaseOrdersManagementView: React.FC = () => {
         setDeleteError={setDeleteError}
         handleConfirmDeleteOrder={handleConfirmDeleteOrder}
         selectedOrderForDetail={selectedOrderForDetail}
+        receiptData={receiptData}
+        receiptLoading={receiptLoading}
+        receiptError={receiptError}
         setSelectedOrderForDetail={setSelectedOrderForDetail}
-        allBranches={allBranches}
       />
     </div>
   );

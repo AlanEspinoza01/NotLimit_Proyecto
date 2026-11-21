@@ -83,7 +83,9 @@ const STORAGE_KEY = 'nolimits_home_carousel_slides_v2';
 export const STORAGE_SLIDER_SPEED_KEY = 'nolimits_home_carousel_speed_v1';
 
 export const AdminImageCarousel: React.FC = () => {
-  const { isAdmin } = useAuth();
+  // El permiso se deriva del rol de la sesión, no de una propiedad inexistente.
+  const { currentRole } = useAuth();
+  const isAdmin = currentRole === 'super_admin';
 
   // Cargar diapositivas desde localStorage o usar las 8 iniciales
   const [slides, setSlides] = useState<CarouselSlide[]>(() => {

@@ -69,7 +69,7 @@ export default function App() {
                 <TopNavBar />
 
                 {/* Área de Visualización Principal (Ventanas y Contenido Blanco Limpio) */}
-                <main className="flex-1 w-full max-w-[96%] xl:max-w-[1580px] 2xl:max-w-[1680px] mx-auto px-2 sm:px-3 py-3 relative z-10">
+                <main className="flex-1 w-full min-w-0 max-w-[96%] xl:max-w-[1580px] 2xl:max-w-[1680px] mx-auto px-2 sm:px-3 py-3 relative z-10">
                   <AppRoutes />
                 </main>
 

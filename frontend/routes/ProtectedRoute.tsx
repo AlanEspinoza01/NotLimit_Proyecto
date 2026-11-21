@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext';
 
 // Protege rutas básicas (solo exige que el usuario haya iniciado sesión)
 export const ProtectedRoute = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   
+  if (isLoading) return null;
   if (!isAuthenticated) {
     // Si no está autenticado, lo enviamos al login
     return <Navigate to="/login" replace />; 
@@ -17,7 +18,8 @@ export const ProtectedRoute = () => {
 
 // Protege rutas administrativas (exige sesión Y un rol específico)
 export const AdminRoute = ({ allowedRoles }: { allowedRoles: string[] }) => {
-  const { isAuthenticated, currentRole } = useAuth();
+  const { isAuthenticated, currentRole, isLoading } = useAuth();
+  if (isLoading) return null;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

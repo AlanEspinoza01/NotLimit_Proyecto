@@ -1,3 +1,4 @@
+
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import { 
@@ -28,6 +29,9 @@ const normalizeProductPayload = (rawData: any) => {
   const effectiveNormalPrice = Number(data.normalPrice ?? data.price ?? effectivePrice) || effectivePrice;
   data.price = effectivePrice;
   data.normalPrice = effectiveNormalPrice;
+  // Precio de oferta calculado por el servidor para el catálogo y el carrito.
+  const percent = Math.max(0, Math.min(100, Number(data.discountPercent || 0)));
+  data.salePrice = Math.round(effectivePrice * (1 - percent / 100));
 
   // 2. Obtener desglose de tallas desde sizeBreakdown o sizeStock (o sizes si venía como objetos)
   const rawBreakdown =
@@ -172,77 +176,162 @@ export const getOrders = async (
   }
 };
 
-// 1. Controlador para actualizar el estado o anular una orden en MongoDB
+// Un pago electrónico se confirma exclusivamente desde su pasarela. El personal
+// puede avanzar el pedido después de confirmarse el pago, pero nunca aprobar o
+// rechazar manualmente una transacción Webpay / Mercado Pago mediante esta ruta.
+const isElectronicGateway = (method: string): boolean =>
+  /web\s*pay|mercado\s*pago/i.test(method);
+
+const isManualPaymentMethod = (method: string): boolean =>
+  /sistema\s*pos|khipu|transferencia|efectivo|reserva/i.test(method) && !isElectronicGateway(method);
+
+// Las transiciones están limitadas al flujo que ofrece el panel de órdenes.
+// Evita marcar como entregadas compras que ni siquiera fueron preparadas.
+const getNextOrderStatuses = (current: string, deliveryType: string): string[] => {
+  switch (current) {
+    case 'Pago Confirmando': return ['Solicitud recibida'];
+    case 'Solicitud recibida': return ['En Preparación'];
+    case 'En Preparación': return ['En transito'];
+    case 'En transito':
+      return deliveryType === 'envio' ? ['Entregado'] : ['Listo para el retiro de sucursal'];
+    case 'Listo para el retiro de sucursal': return ['Retirado'];
+    case 'Entregado':
+    case 'Retirado': return ['Solicitud de Devolución recibida'];
+    case 'Solicitud de Devolución recibida': return ['Revisión de equipo'];
+    case 'Revisión de equipo': return ['Aprobada por Admin', 'Rechazada por Admin'];
+    case 'Aprobada por Admin':
+      return deliveryType === 'envio' ? ['Envió a punto'] : ['Retiro Presencial'];
+    default: return [];
+  }
+};
+
+const normalizePreviousOrderStatus = (raw: string): string => {
+  const text = raw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[_-]/g, ' ');
+  if (text === 'en transito') return 'En transito';
+  if (text === 'en preparacion') return 'En Preparación';
+  if (text === 'solicitud recibida') return 'Solicitud recibida';
+  if (text === 'pago confirmando' || text === 'pago confirmado') return 'Pago Confirmando';
+  if (text === 'pendiente de pago') return 'Pendiente de Pago';
+  return raw;
+};
+
 export const updateOrderStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { id } = req.params;
-    const {
-      status,
-      fulfillmentStatus,
-      paymentStatus,
-      trackingNumber,
-      shippingCourier,
-      auditNote,
-      cancellationReason,
-      cancelledAt
-    } = req.body;
-
-    const effectiveStatus = status || fulfillmentStatus || 'Pago Confirmando';
-    const isCancelled =
-      effectiveStatus === 'Pago Anulado' ||
-      effectiveStatus === 'Anulado' ||
-      effectiveStatus === 'Cancelado' ||
-      paymentStatus === 'REJECTED';
-
-    const updateFields: Record<string, any> = {
-      status: effectiveStatus,
-      fulfillmentStatus: effectiveStatus
-    };
-
-    if (isCancelled) {
-      updateFields.paymentStatus = 'REJECTED';
-      updateFields.confirmedRevenue = 0;
-      if (cancellationReason !== undefined) {
-        updateFields.cancellationReason = cancellationReason;
-      }
-      updateFields.cancelledAt =
-        cancelledAt || new Date().toISOString().replace('T', ' ').substring(0, 16);
-    } else if (paymentStatus) {
-      updateFields.paymentStatus = paymentStatus;
-    }
-
-    if (trackingNumber) {
-      updateFields.trackingNumber = trackingNumber;
-      updateFields['shippingDetails.trackingNumber'] = trackingNumber;
-    }
-    if (shippingCourier) {
-      updateFields.shippingCourier = shippingCourier;
-      updateFields['shippingDetails.courier'] = shippingCourier;
-    }
-
-    const updateQuery: Record<string, any> = { $set: updateFields };
-    if (auditNote || cancellationReason) {
-      updateQuery.$push = {
-        statusAuditLog: {
-          status: effectiveStatus,
-          timestamp: new Date().toLocaleString('es-CL'),
-          note: auditNote || cancellationReason
-        }
-      };
-    }
-
-    const updatedOrder = await OrderModel.findByIdAndUpdate(
-      id,
-      updateQuery,
-      { returnDocument: 'after' }
-    );
-
-    if (!updatedOrder) {
-      res.status(404).json({ success: false, message: 'Orden no encontrada en MongoDB' });
+    const id = String(req.params.id || '');
+    if (!/^[a-f0-9]{24}$/i.test(id)) {
+      res.status(400).json({success: false, message: 'Identificador de orden inválido'});
       return;
     }
 
-    res.status(200).json({ success: true, data: updatedOrder });
+    const currentOrder = await OrderModel.findById(id);
+    if (!currentOrder) {
+      res.status(404).json({success: false, message: 'Orden no encontrada'});
+      return;
+    }
+
+    const body = req.body || {};
+    const newStatus = String(body.fulfillmentStatus || body.status || '').trim();
+    if (!newStatus || (body.status && body.fulfillmentStatus && body.status !== body.fulfillmentStatus)) {
+      res.status(400).json({success: false, message: 'Debes indicar un único estado válido para el pedido'});
+      return;
+    }
+
+    const previousStatus = normalizePreviousOrderStatus(String(currentOrder.fulfillmentStatus || currentOrder.status || ''));
+    const currentPayment = currentOrder.paymentStatus;
+    const gateway = isElectronicGateway(String(currentOrder.paymentMethod || ''));
+    const manual = isManualPaymentMethod(String(currentOrder.paymentMethod || ''));
+    const requestedPayment = body.paymentStatus;
+    const auditNote = typeof body.auditNote === 'string' ? body.auditNote.trim() : '';
+    if (auditNote.length > 1000) {
+      res.status(400).json({success: false, message: 'La observación es demasiado extensa'});
+      return;
+    }
+
+    const updateFields: Record<string, unknown> = {};
+    const isPaymentAction = ['Pago Confirmando', 'Pago Anulado', 'Pendiente de Pago', 'Reembolsado'].includes(newStatus);
+    if (isPaymentAction) {
+      // Una transacción de una pasarela no puede confirmarse/anularse desde el panel.
+      if (!manual || currentPayment !== 'PENDING' || !['Pago Confirmando', 'Pago Anulado'].includes(newStatus)) {
+        res.status(403).json({success: false, message: 'El estado del pago se determina por su medio de pago; no se puede modificar desde este botón'});
+        return;
+      }
+      const nextPayment = newStatus === 'Pago Confirmando' ? 'CONFIRMED' : 'REJECTED';
+      if (requestedPayment !== undefined && requestedPayment !== nextPayment) {
+        res.status(400).json({success: false, message: 'El estado de pago enviado no corresponde a la acción solicitada'});
+        return;
+      }
+      updateFields.paymentStatus = nextPayment;
+      updateFields.confirmedRevenue = nextPayment === 'CONFIRMED' ? currentOrder.total : 0;
+      if (nextPayment === 'REJECTED') {
+        updateFields.cancelledAt = new Date().toISOString();
+        updateFields.cancellationReason = String(body.cancellationReason || auditNote || 'Pago pendiente anulado');
+      }
+    } else {
+      if (currentPayment !== 'CONFIRMED') {
+        res.status(409).json({success: false, message: 'No se puede avanzar el pedido mientras su pago no esté confirmado'});
+        return;
+      }
+      // Incluso un cliente que manipule la petición no puede cambiar datos de cobro.
+      if (requestedPayment !== undefined && requestedPayment !== currentPayment) {
+        res.status(403).json({success: false, message: 'El pago no puede modificarse desde el seguimiento del pedido'});
+        return;
+      }
+      const allowed = getNextOrderStatuses(previousStatus, String(currentOrder.deliveryType || ''));
+      // Compatibilidad: algunas órdenes antiguas confirmadas guardaban aún
+      // "Pendiente de Pago" como estado operativo al confirmarse la pasarela.
+      if (currentPayment === 'CONFIRMED' && previousStatus === 'Pendiente de Pago') {
+        allowed.push('Solicitud recibida');
+      }
+      if (!allowed.includes(newStatus)) {
+        res.status(409).json({success: false, message: `No se puede pasar de "${previousStatus}" a "${newStatus}". Actualiza la lista para comprobar el estado vigente.`});
+        return;
+      }
+      // Rechazar una devolución NO anula ni devuelve automáticamente el cobro.
+      // El reembolso requiere un proceso financiero independiente y verificado.
+    }
+
+    updateFields.status = newStatus;
+    updateFields.fulfillmentStatus = newStatus;
+
+    if (body.trackingNumber !== undefined || body.shippingCourier !== undefined) {
+      if (currentOrder.deliveryType !== 'envio' || newStatus !== 'En transito') {
+        res.status(400).json({success: false, message: 'Los datos de seguimiento solo pueden registrarse al enviar el pedido'});
+        return;
+      }
+      const code = String(body.trackingNumber || '').trim();
+      if (code && !/^[A-Za-z0-9._-]{4,90}$/.test(code)) {
+        res.status(400).json({success: false, message: 'El código de seguimiento no tiene un formato válido'});
+        return;
+      }
+      const courier = String(body.shippingCourier || '').trim();
+      if (courier && !['Starken', 'Blue Express', 'Paket'].includes(courier)) {
+        res.status(400).json({success: false, message: 'Servicio de transporte no reconocido'});
+        return;
+      }
+      if (code) updateFields['shippingDetails.trackingNumber'] = code;
+      if (courier) updateFields['shippingDetails.courier'] = courier;
+    }
+
+    // Condición de concurrencia: si otro administrador avanzó el pedido,
+    // evitamos sobrescribir su estado o insertar un historial incorrecto.
+    const updatedOrder = await OrderModel.findOneAndUpdate(
+      {_id: currentOrder._id, paymentStatus: currentOrder.paymentStatus,
+        status: currentOrder.status, fulfillmentStatus: currentOrder.fulfillmentStatus},
+      {
+        $set: updateFields,
+        $push: {statusAuditLog: {
+          status: newStatus,
+          timestamp: new Date().toISOString(),
+          note: [auditNote, `Cambio registrado por ${req.user?.email || 'administrador'}`].filter(Boolean).join(' · ')
+        }}
+      },
+      {returnDocument: 'after', runValidators: true}
+    );
+    if (!updatedOrder) {
+      res.status(409).json({success: false, message: 'La orden cambió mientras la editabas. Actualiza la lista e inténtalo nuevamente.'});
+      return;
+    }
+    res.status(200).json({success: true, data: updatedOrder});
   } catch (error) {
     console.error('Error en updateOrderStatus:', error);
     next(error);
@@ -253,6 +342,11 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
 export const deleteOrder = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { id } = req.params;
+    const protectedOrder = await OrderModel.findById(id);
+    if (protectedOrder?.paymentMethod === 'Webpay Plus') {
+      res.status(403).json({success:false,message:'No se puede eliminar el comprobante de una transacción Webpay.'});
+      return;
+    }
     const deletedOrder = await OrderModel.findByIdAndDelete(id);
     
     if (!deletedOrder) {
@@ -443,6 +537,9 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
       updateData.normalPrice = currentProduct.normalPrice || currentProduct.price;
     }
 
+    // Una edición rápida de stock no debe sobrescribir el descuento actual.
+    if (updateData.discountPercent === undefined) updateData.discountPercent = currentProduct.discountPercent || 0;
+
     // Normalizar title/name y sizeBreakdown/sizes antes de actualizar en MongoDB
     updateData = normalizeProductPayload(updateData);
 
@@ -482,6 +579,12 @@ export const updateStoreSettings = async (req: Request, res: Response, next: Nex
     const settingsPayload = typeof rawData.settings === 'string' 
       ? JSON.parse(rawData.settings) 
       : rawData;
+
+    // Solo el controlador de cupones puede cambiar el catálogo y sus contadores.
+    if (Object.prototype.hasOwnProperty.call(settingsPayload, 'coupons')) {
+      res.status(400).json({success:false,message:'Gestiona cupones mediante /api/admin/coupons'});
+      return;
+    }
 
     const currentSettings = await StoreSettingsModel.findById('global_settings');
     const files = Array.isArray(req.files) ? (req.files as any[]) : [];
@@ -1457,6 +1560,17 @@ export const updateSystemAlert = async (req: Request, res: Response, next: NextF
     delete updateData._id;
     delete updateData.id;
 
+    // Comprobar antes de editar una alerta que no se está confirmando una orden Webpay.
+    if (updateData.paymentResolutionStatus) {
+      const alertBefore = await SystemAlertModel.findById(id);
+      if (alertBefore?.orderNumber) {
+        const linkedOrder = await OrderModel.findOne({ orderNumber: alertBefore.orderNumber });
+        if (linkedOrder?.paymentMethod === 'Webpay Plus') {
+          res.status(403).json({ success:false, message:'Las órdenes Webpay requieren autorización de Transbank' });
+          return;
+        }
+      }
+    }
     const updatedAlert = await SystemAlertModel.findByIdAndUpdate(
       id,
       { $set: updateData },
@@ -1474,6 +1588,10 @@ export const updateSystemAlert = async (req: Request, res: Response, next: NextF
       const newOrderStatus = isConfirmed ? 'Solicitud recibida' : 'Pago Anulado';
       const targetOrder = await OrderModel.findOne({ orderNumber: updatedAlert.orderNumber });
 
+      if (targetOrder?.paymentMethod === 'Webpay Plus') {
+        res.status(403).json({success:false,message:'No se permite confirmar pagos Webpay desde notificaciones'});
+        return;
+      }
       if (targetOrder) {
         targetOrder.status = newOrderStatus;
         targetOrder.fulfillmentStatus = newOrderStatus;
@@ -1745,16 +1863,19 @@ export const getMyOrders = async (
     }
 
     const userEmail = String(req.user.email || '').toLowerCase().trim();
+    // El historial personal registra exclusivamente compras cuyo pago está
+    // CONFIRMADO en MongoDB. Las órdenes pendientes siguen visibles al admin.
     const orders = await OrderModel.find({
+      paymentStatus: 'CONFIRMED',
       $or: [
         { userId: req.user._id },
         ...(userEmail ? [{ customerEmail: userEmail }, { guestEmail: userEmail }] : [])
       ]
     }).sort({ createdAt: -1 });
 
+    res.setHeader('Cache-Control', 'private, no-store');
     res.status(200).json({ success: true, data: orders });
   } catch (error) {
     next(error);
   }
 };
-

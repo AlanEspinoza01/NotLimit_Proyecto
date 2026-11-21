@@ -4,6 +4,8 @@ NotLimit_Proyecto/
 │   ├── dist/ [omitida]
 │   ├── node_modules/ [omitida]
 │   ├── scripts/
+│   │   ├── couponBridge.cjs
+│   │   ├── ensureCouponIndexes.cjs
 │   │   └── seed.ts
 │   ├── src/
 │   │   ├── config/
@@ -14,7 +16,11 @@ NotLimit_Proyecto/
 │   │   ├── controllers/
 │   │   │   ├── admin.controller.ts
 │   │   │   ├── auth.controller.ts
-│   │   │   └── health.controller.ts
+│   │   │   ├── coupon.controller.ts
+│   │   │   ├── health.controller.ts
+│   │   │   ├── receipt.controller.ts
+│   │   │   ├── review.controller.ts
+│   │   │   └── webpay.controller.ts
 │   │   ├── middleware/
 │   │   │   ├── auth.middleware.ts
 │   │   │   ├── authenticateUser.ts
@@ -27,18 +33,31 @@ NotLimit_Proyecto/
 │   │   │   ├── Expense.model.ts
 │   │   │   ├── index.ts
 │   │   │   ├── Order.model.ts
+│   │   │   ├── PaymentCoupon.model.ts
 │   │   │   ├── Product.model.ts
 │   │   │   ├── Review.model.ts
 │   │   │   ├── StoreSettings.model.ts
 │   │   │   ├── Supplier.model.ts
 │   │   │   ├── SystemAlert.model.ts
-│   │   │   └── User.model.ts
+│   │   │   ├── User.model.ts
+│   │   │   └── WebpayAttempt.model.ts
 │   │   ├── routes/
 │   │   │   ├── admin.routes.ts
 │   │   │   ├── auth.routes.ts
 │   │   │   ├── index.ts
-│   │   │   └── sessionPolicyRoutes.ts
+│   │   │   ├── review.routes.ts
+│   │   │   ├── sessionPolicyRoutes.ts
+│   │   │   └── webpay.routes.ts
 │   │   ├── services/
+│   │   │   ├── webpay/
+│   │   │   │   ├── coupon.service.ts
+│   │   │   │   ├── paymentLifecycle.service.ts
+│   │   │   │   ├── pricing.service.ts
+│   │   │   │   ├── README.md
+│   │   │   │   ├── receipt.service.ts
+│   │   │   │   ├── shippingQuotesEngine.ts
+│   │   │   │   ├── stock.service.ts
+│   │   │   │   └── webpay.client.ts
 │   │   │   ├── auth.service.ts
 │   │   │   └── index.ts
 │   │   ├── utils/
@@ -145,6 +164,7 @@ NotLimit_Proyecto/
 │   │   │   ├── PixelButton.tsx
 │   │   │   ├── PixelHeart.tsx
 │   │   │   ├── PixelIcon.tsx
+│   │   │   ├── PurchaseReceipt.tsx
 │   │   │   ├── QuickAddSizeModal.tsx
 │   │   │   └── SoldOutState.tsx
 │   │   ├── home/
@@ -190,6 +210,9 @@ NotLimit_Proyecto/
 │   │   │   ├── OSDesktopTaskbar.tsx
 │   │   │   ├── TopNavBar.tsx
 │   │   │   └── WindowFrame.tsx
+│   │   ├── legal/
+│   │   │   ├── legalCopy.ts
+│   │   │   └── LegalDocument.tsx
 │   │   ├── product/
 │   │   │   └── ProductReviewsSection.tsx
 │   │   └── profile/
@@ -210,6 +233,7 @@ NotLimit_Proyecto/
 │   │   ├── BranchContext.tsx
 │   │   ├── CartContext.tsx
 │   │   └── WishlistContext.tsx
+│   ├── dist/ [omitida]
 │   ├── images/ [omitida]
 │   ├── node_modules/ [omitida]
 │   ├── public/ [omitida]
@@ -220,6 +244,7 @@ NotLimit_Proyecto/
 │   │   ├── api.ts
 │   │   ├── couponsService.ts
 │   │   ├── mockData.ts
+│   │   ├── receiptExport.ts
 │   │   └── shippingQuotesEngine.ts
 │   ├── styles/
 │   │   ├── responsive-matrix.css
@@ -254,7 +279,8 @@ NotLimit_Proyecto/
 │   │   ├── HomeView.css
 │   │   ├── HomeView.tsx
 │   │   ├── ProductDetailView.tsx
-│   │   └── ProfileView.tsx
+│   │   ├── ProfileView.tsx
+│   │   └── WebpayResultView.tsx
 │   ├── App.tsx
 │   ├── index.css
 │   ├── index.html

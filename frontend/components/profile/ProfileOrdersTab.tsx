@@ -1,4 +1,7 @@
-import React from 'react';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import api from '../../api/axios';
+import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import {
   Package,
@@ -15,7 +18,7 @@ import {
   PurchaseOrder,
   ReturnRequest,
   getReturnEligibility,
-  resolveCatalogProductForOrderItem
+  parseOrderDate
 } from './profileTypes';
 import { ProductStockDetail } from '../../views/admin/ProductStockSummaryView';
 
@@ -35,7 +38,6 @@ interface ProfileOrdersTabProps {
 
 export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
   orders,
-  filteredOrders,
   ordersFilter,
   setOrdersFilter,
   ordersSort,
@@ -46,6 +48,126 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
   handleOpenOrderReturn,
   setRejectionModalReturn
 }) => {
+  // El componente lee las órdenes desde la API autenticada para no depender del
+  // localStorage anterior ni de precios reescritos con el catálogo vigente.
+  // ProfileView.tsx no figura en el TXT nuevo: evitamos reemplazarlo con una versión antigua.
+  const { currentUser, isLoading: isLoadingSession } = useAuth();
+  const [serverOrders, setServerOrders] = useState<PurchaseOrder[] | null>(null);
+  const [historyError, setHistoryError] = useState('');
+
+  const normalizeStep = (raw: unknown, payment: string): PurchaseOrder['currentStatus'] => {
+    if (payment === 'PENDING') return 'Pendiente de Pago';
+    if (payment === 'REJECTED') return 'Pago Anulado';
+    if (payment === 'REFUNDED') return 'Reembolsado';
+    const label = String(raw || '').toLowerCase().normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').replace(/[_-]/g, ' ').trim();
+    if (label.includes('retirado') && !label.includes('listo')) return 'Retirado';
+    if (label.includes('entregado')) return 'Entregado';
+    if (label.includes('listo') && label.includes('retiro')) return 'Listo para el retiro de sucursal';
+    if (label.includes('transito')) return 'En transito';
+    if (label.includes('preparacion')) return 'En Preparación';
+    return 'Solicitud recibida';
+  };
+
+  useEffect(() => {
+    if (isLoadingSession) return;
+    if (!currentUser?.id || currentUser.role === 'guest') {
+      setServerOrders([]);
+      setHistoryError('');
+      return;
+    }
+    let active = true;
+    setServerOrders(null);
+    setHistoryError('');
+    void api.get('/orders/my-orders').then(({ data }) => {
+      if (!active) return;
+      if (!data?.success || !Array.isArray(data?.data)) throw new Error('Respuesta de órdenes inválida');
+      // Defensa adicional: aunque el servidor ya filtra, no exhibir intentos
+      // de pago pendientes, rechazados ni reembolsados en el historial.
+      const paidOrders = data.data.filter((o: any) => String(o.paymentStatus || '').toUpperCase() === 'CONFIRMED');
+      const mapped: PurchaseOrder[] = paidOrders.map((o: any) => {
+        const paymentStatus: PurchaseOrder['paymentStatus'] =
+          ['PENDING', 'CONFIRMED', 'REJECTED', 'REFUNDED'].includes(String(o.paymentStatus).toUpperCase())
+            ? String(o.paymentStatus).toUpperCase() as PurchaseOrder['paymentStatus']
+            : 'PENDING';
+        const timestamp = new Date(o.createdAt || o.date || 0).getTime();
+        const purchasedAt = Number.isFinite(timestamp) ? timestamp : 0;
+        const subtotal = Number(o.subtotal ?? o.total ?? 0) || 0;
+        const shippingCost = Number(o.shippingCost ?? 0) || 0;
+        const total = Number(o.total ?? 0) || 0;
+        const address = o.shippingDetails?.address;
+        const itemRows = Array.isArray(o.items) ? o.items : [];
+        return {
+          id: String(o._id || o.id || o.orderNumber),
+          orderNumber: String(o.orderNumber || 'Orden sin número'),
+          date: purchasedAt ? new Date(purchasedAt).toLocaleString('es-CL', {
+            day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+          }) : 'Fecha no registrada',
+          purchasedAt,
+          subtotal, shippingCost, total,
+          discountAmount: Math.max(0, subtotal + shippingCost - total),
+          paymentStatus,
+          paymentMethod: String(o.paymentMethod || 'No registrado'),
+          deliveryMethod: o.deliveryType === 'envio' ? 'shipping' : 'pickup',
+          branchId: String(o.pickupBranchId || o.branchId || ''),
+          branchName: String(o.branchName || o.pickupBranchId || 'Sucursal no indicada'),
+          courier: o.shippingDetails?.courier || undefined,
+          shippingAddress: address
+            ? [address.street, address.number, address.apartment, address.comuna, address.region].filter(Boolean).join(', ')
+            : undefined,
+          trackingNumber: o.shippingDetails?.trackingNumber || undefined,
+          // En una orden pagada, prevalece fulfillmentStatus. En una no pagada no
+          // se debe mostrar un pedido como ya preparado o entregado.
+          currentStatus: normalizeStep(
+            /solicitud[ _]recibida|preparaci[oó]n|[ _]transit[oó]|listo.*retiro|retirad|entregad/i.test(String(o.fulfillmentStatus || ''))
+              ? o.fulfillmentStatus : (o.status || o.fulfillmentStatus),
+            String(paymentStatus)
+          ),
+          items: itemRows.map((it: any) => {
+            const productId = String(it.productId || '');
+            const match = catalogProducts.find(product =>
+              product.id === productId || (it.sku && product.sku === it.sku)
+            );
+            return {
+              productId,
+              title: String(it.name || it.title || 'Producto'),
+              size: String(it.size || 'Única'),
+              color: match?.colors?.[0]?.name || '',
+              quantity: Number(it.quantity ?? 1) || 1,
+              // PRECIO CONGELADO DE LA ORDEN; no el precio actualizado del catálogo.
+              price: Number(it.price ?? it.unitPrice ?? 0) || 0,
+              image: match?.images?.[0] || '',
+              isReviewed: Boolean(it.isReviewed)
+            };
+          })
+        };
+      });
+      setServerOrders(mapped);
+    }).catch(() => {
+      if (active) {
+        setServerOrders([]);
+        setHistoryError('No se pudo cargar el historial desde MongoDB. Actualiza la página para volver a intentarlo.');
+      }
+    });
+    return () => { active = false; };
+  }, [currentUser?.id, currentUser?.role, isLoadingSession]);
+
+  const historyOrders = useMemo(() => {
+    const base = serverOrders || [];
+    const selected = base.filter(o => {
+      if (ordersFilter === 'solicitud') return o.currentStatus === 'Solicitud recibida';
+      if (ordersFilter === 'preparation_transit') return o.currentStatus === 'En Preparación' || o.currentStatus === 'En transito';
+      if (ordersFilter === 'pickup') return o.currentStatus === 'Listo para el retiro de sucursal';
+      if (ordersFilter === 'delivered') return o.currentStatus === 'Entregado' || o.currentStatus === 'Retirado';
+      return true;
+    });
+    return selected.sort((a, b) => {
+      const da = a.purchasedAt ?? parseOrderDate(a.date);
+      const db = b.purchasedAt ?? parseOrderDate(b.date);
+      return (ordersSort === 'oldest' ? da - db : db - da) || a.orderNumber.localeCompare(b.orderNumber);
+    });
+  }, [serverOrders, ordersFilter, ordersSort]);
+
   /**
    * Helper para obtener los pasos obligatorios según método de entrega
    */
@@ -75,6 +197,7 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
    */
   const getStepStatus = (order: PurchaseOrder, stepKey: string, stepIndex: number) => {
     const steps = getOrderSteps(order);
+    if (order.paymentStatus && order.paymentStatus !== 'CONFIRMED') return 'pending';
     const currentIndex = steps.findIndex(s => s.key === order.currentStatus);
 
     if (stepIndex < currentIndex) return 'completed';
@@ -106,7 +229,7 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
             <span>Ver Horarios de Retiro</span>
           </button>
           <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2 py-1 border border-gray-300">
-            {filteredOrders.length} compras registradas
+            {historyOrders.length} de {serverOrders?.length ?? 0} compras registradas
           </span>
         </div>
       </div>
@@ -123,7 +246,7 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
             }`}
           >
             <Package className="w-3 h-3 text-blue-700 shrink-0" />
-            <span>Todas ({orders.length})</span>
+            <span>Todas ({serverOrders?.length ?? 0})</span>
           </button>
           <button
             type="button"
@@ -194,21 +317,20 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
 
       {/* Listado de Órdenes */}
       <div className="space-y-4">
-        {filteredOrders.length === 0 ? (
+        {serverOrders === null ? (
+          <div className="p-8 text-center text-gray-600 text-xs border border-gray-300">Cargando historial de compras desde MongoDB…</div>
+        ) : historyError ? (
+          <div role="alert" className="p-5 text-center text-red-800 text-xs border border-red-300 bg-red-50">{historyError}</div>
+        ) : historyOrders.length === 0 ? (
           <div className="p-8 text-center text-gray-500 text-xs border border-dashed border-gray-300 bg-gray-50">
             No se encontraron compras en esta categoría.
           </div>
         ) : (
-          filteredOrders.map((order) => {
+          historyOrders.map((order) => {
             const steps = getOrderSteps(order);
             const isPickup = order.deliveryMethod === 'pickup';
-            const resolvedTrackingNumber =
-              order.trackingNumber ||
-              (order.courier?.toLowerCase().includes('blue')
-                ? `BX-${order.orderNumber.replace(/\D/g, '') || '8829'}104`
-                : order.courier?.toLowerCase().includes('paket')
-                ? `PKT-${order.orderNumber.replace(/\D/g, '') || '5501'}92`
-                : `STK-${order.orderNumber.replace(/\D/g, '') || '9120'}482`);
+            // Solo se muestra un seguimiento realmente registrado por el administrador.
+            const resolvedTrackingNumber = order.trackingNumber?.trim();
 
             return (
               <div
@@ -229,9 +351,9 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
                             : 'bg-blue-100 text-blue-900 border-blue-400'
                         }`}
                       >
-                        {isPickup ? `🏪 Retiro en ${order.branchName}` : `🚚 Envío ${order.courier}`}
+                        {isPickup ? `🏪 Retiro en ${order.branchName}` : `🚚 Envío (${order.courier || 'servicio sin asignar'})`}
                       </span>
-                      {!isPickup && order.currentStatus === 'En transito' && (
+                      {!isPickup && order.currentStatus === 'En transito' && resolvedTrackingNumber && (
                         <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 border border-indigo-400 bg-indigo-50 text-indigo-950 rounded-xs inline-flex items-center gap-1.5 shadow-2xs">
                           <Truck className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
                           <span>
@@ -400,7 +522,10 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
                       })()}
                     </div>
                     <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                      <span>Fecha de compra: {order.date} · Total: ${order.total.toLocaleString('es-CL')} CLP</span>
+                      <span>Fecha de compra: {order.date} · {order.paymentStatus === 'CONFIRMED' ? 'Pagado' : 'Total de orden'}: ${order.total.toLocaleString('es-CL')} CLP</span>
+                      <span className={`px-1.5 py-0.5 border font-semibold ${order.paymentStatus === 'CONFIRMED' ? 'text-green-900 bg-green-50 border-green-300' : order.paymentStatus === 'PENDING' ? 'text-amber-900 bg-amber-50 border-amber-300' : 'text-red-900 bg-red-50 border-red-300'}`}>
+                        {order.paymentStatus === 'CONFIRMED' ? 'Pago confirmado' : order.paymentStatus === 'PENDING' ? 'Pago pendiente' : order.paymentStatus === 'REFUNDED' ? 'Reembolsado' : 'Pago rechazado / anulado'}
+                      </span>
                       {order.items.length > 1 && (
                         <span className="text-[10px] text-blue-800 font-semibold bg-blue-50 px-1.5 py-0.2 border border-blue-200 rounded-xs">
                           {order.items.length} prendas en esta compra
@@ -472,6 +597,14 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
                       {isPickup ? 'Flujo de Retiro Presencial' : 'Flujo de Despacho Domicilio'}
                     </span>
                   </div>
+
+                  {order.paymentStatus !== 'CONFIRMED' && (
+                    <p className="bg-amber-50 border border-amber-300 p-2 text-xs text-amber-950">
+                      {order.paymentStatus === 'PENDING' ? 'La preparación comienza una vez confirmado el pago.'
+                        : order.paymentStatus === 'REFUNDED' ? 'Esta compra fue reembolsada.'
+                        : 'Esta compra fue anulada o rechazada; no sigue avanzando.'}
+                    </p>
+                  )}
 
                   {/* Visual Stepper Horizontal con Estado Actual Embellecido y Texto Blanco */}
                   <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-5 gap-1.5 pt-1">
@@ -572,29 +705,36 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
                       <div className="flex items-center gap-2 text-indigo-950">
                         <Truck className="w-4 h-4 text-indigo-700 shrink-0" />
                         <span>
-                          Envío en tránsito vía <strong>{order.courier || 'Blue Express'}</strong>
+                          Envío en tránsito vía <strong>{order.courier || 'servicio aún no asignado'}</strong>
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 font-mono text-xs bg-white px-2.5 py-1 border border-indigo-300 rounded-xs shadow-2xs">
                         <span className="text-gray-600 font-sans font-semibold">Código de seguimiento:</span>
-                        <strong className="text-indigo-900 font-black tracking-wide">{resolvedTrackingNumber}</strong>
+                        <strong className="text-indigo-900 font-black tracking-wide">{resolvedTrackingNumber || 'Aún no disponible'}</strong>
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Montos históricos guardados en orders: no recalcular precios con el catálogo actual. */}
+                <div className="bg-blue-50 border border-blue-200 p-2.5 text-xs text-gray-800 space-y-1">
+                  <div className="flex justify-between gap-2"><span>Subtotal de productos al comprar</span><strong>${Number(order.subtotal ?? order.total).toLocaleString('es-CL')} CLP</strong></div>
+                  {(order.discountAmount ?? 0) > 0 && (
+                    <div className="flex justify-between gap-2 text-green-900"><span>Descuento aplicado (cupón u otro beneficio)</span><strong>−${Number(order.discountAmount).toLocaleString('es-CL')} CLP</strong></div>
+                  )}
+                  <div className="flex justify-between gap-2"><span>Envío</span><strong>${Number(order.shippingCost ?? 0).toLocaleString('es-CL')} CLP</strong></div>
+                  <div className="flex justify-between gap-2 border-t border-blue-200 pt-1 font-bold text-blue-950"><span>{order.paymentStatus === 'CONFIRMED' ? 'Monto pagado' : 'Total de la orden'}</span><span>${order.total.toLocaleString('es-CL')} CLP</span></div>
                 </div>
 
                 {/* Lista de Prendas Compradas en este Pedido */}
                 <div className="space-y-2 pt-1">
                   <div className="text-[11px] font-bold text-gray-700">Prendas de esta Compra:</div>
                   {order.items.map((item, idx) => {
-                    const catalogProd = resolveCatalogProductForOrderItem(
-                      item.productId,
-                      item.title,
-                      catalogProducts
-                    );
-                    const displayTitle = catalogProd?.title || item.title;
-                    const displayImage = catalogProd?.images?.[0] || item.image;
-                    const displayPrice = catalogProd ? (catalogProd.salePrice ?? catalogProd.price) : item.price;
+                    const catalogProd = catalogProducts.find(p => p.id === item.productId || p.title === item.title);
+                    // Mantener el nombre, talla y precio que figuraban en la compra original.
+                    const displayTitle = item.title;
+                    const displayImage = item.image || catalogProd?.images?.[0] || '';
+                    const displayPrice = item.price;
                     const taxonomyLabel = catalogProd
                       ? [catalogProd.section, catalogProd.category, catalogProd.subCategory]
                           .filter(Boolean)
@@ -631,7 +771,10 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
                               <strong className="text-gray-700">{item.quantity}</strong>
                             </div>
                             <div className="text-[11px] font-bold text-red-700">
-                              ${displayPrice.toLocaleString('es-CL')} CLP
+                              ${displayPrice.toLocaleString('es-CL')} CLP por unidad
+                            </div>
+                            <div className="text-[10px] text-gray-600">
+                              Subtotal de esta prenda: ${(displayPrice * item.quantity).toLocaleString('es-CL')} CLP
                             </div>
                           </div>
                         </div>

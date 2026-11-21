@@ -6,6 +6,7 @@ import {
   likeReview
 } from '../controllers/review.controller';
 import authenticateUser from '../middleware/authenticateUser';
+import validateRequestOrigin from '../middleware/validateRequestOrigin';
 import { uploadMiddleware } from '../config/cloudinary';
 
 const reviewRouter = Router();
@@ -16,6 +17,6 @@ reviewRouter.post('/:id/like', likeReview);
 
 // Rutas autenticadas (clientes)
 reviewRouter.get('/my-reviews', authenticateUser, getMyReviews);
-reviewRouter.post('/', authenticateUser, uploadMiddleware.array('photos', 10), createReview);
+reviewRouter.post('/', authenticateUser, validateRequestOrigin, uploadMiddleware.array('photos', 10), createReview);
 
 export default reviewRouter;

@@ -15,7 +15,8 @@ import {
   RedeemedUserCoupon,
   loadAdminCouponsCatalog,
   loadRedeemedCoupons,
-  redeemCouponTemplateForUser
+  saveRedeemedCoupons,
+  saveAdminCouponsCatalog, refreshCouponsFromBackend
 } from '../services/couponsService';
 import {
   calculateCourierQuotes,
@@ -85,7 +86,7 @@ import { ProfileSettingsTab } from '../components/profile/ProfileSettingsTab';
 import { ProfileModals } from '../components/profile/ProfileModals';
 
 export const ProfileView: React.FC = () => {
-  const { currentUser, logout, updateProfile, addLoyaltyPoints, deductLoyaltyPoints } = useAuth();
+  const { currentUser, logout, updateProfile, addLoyaltyPoints, deductLoyaltyPoints, refreshUser } = useAuth();
   const { wishlist, removeFromWishlist, wishlistCount } = useWishlist();
   const { branches } = useBranch();
   const navigate = useNavigate();
@@ -468,14 +469,7 @@ export const ProfileView: React.FC = () => {
   const [pointsNotification, setPointsNotification] = useState<string | null>(null);
   const [redeemConfirmCoupon, setRedeemConfirmCoupon] = useState<CouponItem | null>(null);
 
-  // Bonificación de 1000 puntos solicitada por el usuario para testeo de la cuenta de cliente
-  useEffect(() => {
-    const testPointsKey = 'nolimits_test_1000_pts_applied_v2';
-    if (!localStorage.getItem(testPointsKey)) {
-      localStorage.setItem(testPointsKey, 'true');
-      addLoyaltyPoints(1000);
-    }
-  }, []);
+  // Se eliminaron los 1000 puntos de prueba; las recompensas se acreditan en MongoDB.
  
   // =========================================================================
   // GESTIÓN DE DIRECCIONES (Múltiples Direcciones & Selección de Predeterminada)
@@ -1845,35 +1839,36 @@ export const ProfileView: React.FC = () => {
     handleRequestRedeem(coupon);
   };
 
-  const handleConfirmRedeem = () => {
-    if (!redeemConfirmCoupon) return;
-    const coupon = redeemConfirmCoupon;
 
-    if ((currentUser?.loyaltyPoints || 0) < coupon.pointsCost) {
-      setPointsNotification(`Puntos insuficientes. Necesitas ${coupon.pointsCost} puntos y tienes ${currentUser?.loyaltyPoints || 0}.`);
-      setRedeemConfirmCoupon(null);
-      return;
-    }
-
-    const success = deductLoyaltyPoints(coupon.pointsCost);
-    if (!success) {
-      setRedeemConfirmCoupon(null);
-      return;
-    }
-
-    const { redeemedCoupon, updatedCatalog, updatedRedeemedList } = redeemCouponTemplateForUser({
-      template: coupon,
-      userEmail: currentUser?.email || 'cliente@gmail.com',
-      userName: currentUser?.name || 'Cliente NoLimits'
+// La interfaz de canje original permanece; el código ahora lo emite MongoDB,
+// porque un cupón inventado desde localStorage no puede pagarse con Webpay.
+// Identificador estable durante un reintento: un doble clic no descuenta puntos dos veces.
+const redeemInFlight = React.useRef(false);
+const redeemRequest = React.useRef<{templateId:string;requestId:string}|null>(null);
+const handleConfirmRedeem = async () => {
+  if (!redeemConfirmCoupon || redeemInFlight.current) return;
+  const template = redeemConfirmCoupon;
+  redeemInFlight.current = true;
+  if (redeemRequest.current?.templateId !== template.id) {
+    redeemRequest.current = { templateId: template.id, requestId: crypto.randomUUID() };
+  }
+  try {
+    const response = await api.post('/payments/coupons/redeem', {
+      templateId: template.id, requestId: redeemRequest.current.requestId
     });
-
-    setAdminCouponCatalog(updatedCatalog);
-    setRedeemedCoupons(updatedRedeemedList);
-    setPointsNotification(
-      `✓ ¡Cupón canjeado con éxito! Tu código único de 1 solo uso es: ${redeemedCoupon.code} (Vence el ${redeemedCoupon.expiresAtLabel}). Se descontaron ${coupon.pointsCost} puntos.`
-    );
+    // Los cupones y el saldo se descargan desde MongoDB; no generar ni acreditar nada localmente.
+    await refreshCouponsFromBackend(currentUser?.id || '');
+    await refreshUser();
+    const issuedCode = String(response.data?.data?.redeemedCoupon?.code || '');
     setRedeemConfirmCoupon(null);
-  };
+    setPointsNotification(`✓ Canje registrado en MongoDB${issuedCode ? ': ' + issuedCode : ''}.`);
+    redeemRequest.current = null;
+  } catch(error:any) {
+    setPointsNotification(error.response?.data?.message || 'No se pudo verificar el canje. Reintenta con cuidado.');
+  } finally { redeemInFlight.current = false; }
+};
+
+
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);

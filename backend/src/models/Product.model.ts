@@ -14,6 +14,7 @@ export interface IProduct extends Document {
   description: string;
   price: number;
   normalPrice: number;
+  salePrice: number;
   discountPercent: number;
   weightGrams: number;
   section: string;
@@ -52,6 +53,7 @@ const ProductSchema = new Schema<IProduct>(
     description: { type: String, default: '' },
     price: { type: Number, required: true, min: 0 },
     normalPrice: { type: Number, default: 0, min: 0 },
+    salePrice: { type: Number, default: 0, min: 0 },
     discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     weightGrams: { type: Number, default: 500, min: 0 },
     section: { type: String, required: true, trim: true },

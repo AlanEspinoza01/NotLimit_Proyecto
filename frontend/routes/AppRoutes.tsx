@@ -7,6 +7,7 @@ import { CatalogView } from '../views/CatalogView';
 import { ProductDetailView } from '../views/ProductDetailView';
 import { CartView } from '../views/CartView';
 import { CheckoutView } from '../views/CheckoutView';
+import { WebpayResultView } from '../views/WebpayResultView';
 import { AuthView } from '../views/AuthView';
 import { ProfileView } from '../views/ProfileView';
 
@@ -58,6 +59,7 @@ export const AppRoutes: React.FC = () => {
       <Route path="/product/:id" element={<ProductDetailView />} />
       <Route path="/cart" element={<CartView />} />
       <Route path="/checkout" element={<CheckoutView />} />
+      <Route path="/payment-result" element={<WebpayResultView />} />
       <Route path="/auth" element={<AuthView />} />
       <Route path="/register" element={<AuthView />} />
       <Route path="/login" element={<AuthView />} />

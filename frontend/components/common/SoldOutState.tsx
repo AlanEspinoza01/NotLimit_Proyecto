@@ -18,6 +18,11 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
   sku,
 }) => {
   const { currentUser, isAuthenticated } = useAuth();
+  // El estado de sesión puede ser nulo durante carga o cierre de sesión.
+  // No asumimos que isAuthenticated implica que currentUser ya exista.
+  const authenticatedUser = isAuthenticated && currentUser && currentUser.role !== 'guest'
+    ? currentUser
+    : null;
   const navigate = useNavigate();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -26,7 +31,7 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
 
   const handleSubmitRequest = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAuthenticated || !requestText.trim()) return;
+    if (!authenticatedUser || !requestText.trim()) return;
 
     try {
       const existingRaw = localStorage.getItem('nl_soldout_requests');
@@ -35,9 +40,9 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
         id: `req_so_${Date.now()}`,
         sku,
         productTitle,
-        userId: currentUser.id,
-        userName: currentUser.name,
-        userEmail: currentUser.email,
+        userId: authenticatedUser.id,
+        userName: authenticatedUser.name,
+        userEmail: authenticatedUser.email,
         requestMessage: requestText.trim(),
         createdAt: new Date().toISOString(),
       });
@@ -95,7 +100,7 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
                 <span>Formulario: Solicitud de Producto Agotado</span>
               </div>
               <div className="flex items-center gap-2">
-                {isAuthenticated && (
+                {authenticatedUser && (
                   <span className="text-[10px] font-semibold text-green-700 bg-green-50 border border-green-300 px-1.5 py-0.5 rounded-xs flex items-center gap-1">
                     <UserCheck className="w-3 h-3" />
                     Cliente Verificado
@@ -112,7 +117,7 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
               </div>
             </div>
 
-            {!isAuthenticated ? (
+            {!authenticatedUser ? (
               <div className="bg-amber-50 border border-amber-300 p-2.5 rounded-xs space-y-2 text-gray-800">
                 <div className="flex items-start gap-2">
                   <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
@@ -135,7 +140,7 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
                   <span>¡Solicitud de Producto Agotado enviada con éxito!</span>
                 </div>
                 <p className="text-[11px] text-green-800 leading-tight">
-                  Hemos registrado tu solicitud a nombre de <strong>{currentUser.name}</strong> (<strong>{currentUser.email}</strong>). Te contactaremos prioritariamente apenas se habilite reposición de esta prenda.
+                  Hemos registrado tu solicitud a nombre de <strong>{authenticatedUser.name}</strong> (<strong>{authenticatedUser.email}</strong>). Te contactaremos prioritariamente apenas se habilite reposición de esta prenda.
                 </p>
                 <button
                   type="button"
@@ -159,7 +164,7 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
                     </label>
                     <input
                       type="text"
-                      value={currentUser.name}
+                      value={authenticatedUser.name}
                       readOnly
                       className="winxp-input w-full py-1 px-2 text-xs bg-gray-100 text-gray-700 font-semibold cursor-not-allowed"
                     />
@@ -171,7 +176,7 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
                     </label>
                     <input
                       type="email"
-                      value={currentUser.email}
+                      value={authenticatedUser.email}
                       readOnly
                       className="winxp-input w-full py-1 px-2 text-xs bg-gray-100 text-gray-700 font-semibold cursor-not-allowed"
                     />

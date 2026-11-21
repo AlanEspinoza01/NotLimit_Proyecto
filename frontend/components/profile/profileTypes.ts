@@ -170,6 +170,13 @@ export interface PurchaseOrder {
   orderNumber: string;
   date: string;
   total: number;
+  // Importes históricos capturados al pagar; nunca se recalculan con el catálogo actual.
+  subtotal?: number;
+  shippingCost?: number;
+  discountAmount?: number;
+  purchasedAt?: number;
+  paymentStatus?: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'REFUNDED';
+  paymentMethod?: string;
   deliveryMethod: 'pickup' | 'shipping';
   branchName?: string; // Valparaíso, Viña del Mar, Quilpué
   branchId?: string;
@@ -192,7 +199,10 @@ export interface PurchaseOrder {
     | 'En transito'
     | 'Listo para el retiro de sucursal'
     | 'Entregado'
-    | 'Retirado';
+    | 'Retirado'
+    | 'Pendiente de Pago'
+    | 'Pago Anulado'
+    | 'Reembolsado';
 }
 
 /**
@@ -268,7 +278,7 @@ export const parseOrderDate = (orderDateStr: string): number => {
     enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
     julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
   };
-  const match = orderDateStr.toLowerCase().match(/(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+(\d{4})/);
+  const match = orderDateStr.toLowerCase().match(/(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+(?:de\s+)?(\d{4})/);
   if (match) {
     const day = parseInt(match[1], 10);
     const monthName = match[2].normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -301,7 +311,7 @@ export const getReturnEligibility = (orderDateStr: string) => {
     julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
   };
 
-  const match = orderDateStr.toLowerCase().match(/(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+(\d{4})/);
+  const match = orderDateStr.toLowerCase().match(/(\d{1,2})\s+de\s+([a-záéíóúñ]+)\s+(?:de\s+)?(\d{4})/);
   if (match) {
     const day = parseInt(match[1], 10);
     const monthName = match[2].normalize('NFD').replace(/[\u0300-\u036f]/g, '');

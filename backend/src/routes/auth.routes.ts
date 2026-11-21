@@ -9,6 +9,7 @@ import {
   updateProfileController,
 } from '../controllers/auth.controller';
 import authenticateUser from '../middleware/authenticateUser';
+import validateRequestOrigin from '../middleware/validateRequestOrigin';
 import {
   LOGIN_RATE_LIMIT_WINDOW_MS,
   LOGIN_RATE_LIMIT_MAX_REQUESTS,
@@ -46,6 +47,6 @@ authRouter.get('/me', authenticateUser, getMeController);
 authRouter.post('/logout', logoutController);
 
 // PUT /api/auth/profile/:id -> Actualizar datos del perfil del usuario en MongoDB
-authRouter.put('/profile/:id', authenticateUser, updateProfileController);
+authRouter.put('/profile/:id', authenticateUser, validateRequestOrigin, updateProfileController);
 
 export default authRouter;

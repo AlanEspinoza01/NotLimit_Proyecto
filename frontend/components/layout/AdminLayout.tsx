@@ -14,12 +14,12 @@ interface AdminLayoutProps {
  */
 export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
   return (
-    <div className="flex flex-col lg:flex-row gap-3.5 items-start w-full relative">
+    <div className="flex flex-col lg:flex-row gap-3.5 items-start w-full min-w-0 max-w-full relative">
       {/* Sidebar persistente a la izquierda con los 8 botones requeridos */}
       <AdminSidebar />
 
       {/* Contenido dinámico de la página del Administrador a la derecha */}
-      <div className="flex-1 w-full min-w-0 transition-all">
+      <div className="flex-1 w-full min-w-0 max-w-full transition-all">
         {children || <Outlet />}
       </div>
     </div>

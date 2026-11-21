@@ -32,7 +32,7 @@ export const loginController = async (
     res.status(200).json({
       ok: true,
       success: true,
-      ...result,
+      user: result.user,
     });
   } catch (error) {
     next(error);
@@ -67,7 +67,7 @@ export const registerController = async (
     res.status(201).json({
       ok: true,
       success: true,
-      ...result,
+      user: result.user,
     });
   } catch (error) {
     next(error);
@@ -79,29 +79,16 @@ export const registerController = async (
  * Autentica o crea un usuario mediante Google Auth en la colección `users` de MongoDB.
  */
 export const googleAuthController = async (
-  req: express.Request,
+  _req: express.Request,
   res: express.Response,
-  next: express.NextFunction
+  _next: express.NextFunction
 ): Promise<void> => {
-  try {
-    const { email, name, googleId, avatarUrl } = req.body || {};
-    const result = await googleAuthUserService({
-      email,
-      name,
-      googleId,
-      avatarUrl,
-    });
-
-    res.cookie(AUTH_COOKIE_NAME, result.token, getAuthCookieOptions());
-
-    res.status(200).json({
-      ok: true,
-      success: true,
-      ...result,
-    });
-  } catch (error) {
-    next(error);
-  }
+  // El flujo anterior aceptaba email/googleId sin firma: permitía suplantación de identidad.
+  // Se deshabilita hasta verificar un Google ID Token en el servidor con su audience oficial.
+  res.status(503).json({
+    success:false, ok:false,
+    message:'Acceso Google temporalmente deshabilitado: falta verificar el ID Token firmado en el backend.'
+  });
 };
 
 /**

@@ -1,18 +1,18 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+import { PurchaseReceipt } from '../../common/PurchaseReceipt';
+import type { PurchaseReceiptData } from '../../../services/receiptExport';
 import {
   Truck,
   AlertTriangle,
   CheckCircle2,
-  Trash2,
-  Printer
+  Trash2
 } from 'lucide-react';
 import { WindowFrame } from '../../layout/WindowFrame';
 import { PixelIcon } from '../../common/PixelIcon';
-import { Branch } from '../../../types';
 import {
   PurchaseOrderRecord,
-  PendingStatusTransition,
-  getAdminNameByBranchId
+  PendingStatusTransition
 } from './purchaseOrdersTypes';
 
 interface PurchaseOrdersModalsProps {
@@ -36,8 +36,10 @@ interface PurchaseOrdersModalsProps {
   setDeleteError: (val: string) => void;
   handleConfirmDeleteOrder: () => void;
   selectedOrderForDetail: PurchaseOrderRecord | null;
+  receiptData: PurchaseReceiptData | null;
+  receiptLoading: boolean;
+  receiptError: string;
   setSelectedOrderForDetail: (order: PurchaseOrderRecord | null) => void;
-  allBranches: Branch[];
 }
 
 export const PurchaseOrdersModals: React.FC<PurchaseOrdersModalsProps> = ({
@@ -61,8 +63,10 @@ export const PurchaseOrdersModals: React.FC<PurchaseOrdersModalsProps> = ({
   setDeleteError,
   handleConfirmDeleteOrder,
   selectedOrderForDetail,
+  receiptData,
+  receiptLoading,
+  receiptError,
   setSelectedOrderForDetail,
-  allBranches
 }) => {
   return (
     <>
@@ -314,192 +318,34 @@ export const PurchaseOrdersModals: React.FC<PurchaseOrdersModalsProps> = ({
         </div>
       )}
 
-      {/* =========================================================================
-          MODAL DETALLE COMPLETO DE ORDEN / BOLETA XP
-         ========================================================================= */}
-      {selectedOrderForDetail && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3">
-          <div className="w-full max-w-2xl nl-orders-modal-window animate-in zoom-in-95 duration-150">
+      {/* Modal de comprobante aislado en document.body para evitar recortes y z-index. */}
+      {selectedOrderForDetail && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-2 sm:p-4" role="dialog" aria-modal="true" aria-label={`Detalle de orden ${selectedOrderForDetail.orderNumber}`}>
+          <div className="w-full max-w-[840px] max-h-[calc(100dvh-24px)] overflow-y-auto nl-orders-modal-window">
             <WindowFrame
-              title={`DETALLE DE ORDEN DE COMPRA // ${selectedOrderForDetail.orderNumber}`}
-              icon={<PixelIcon name="floppy" size={16} />}
+              title={`${receiptData?.verified ? 'Comprobante de pago' : 'Detalle de orden'} - ${selectedOrderForDetail.orderNumber}`}
+              icon={<PixelIcon name="floppy" size={16}/>}
               onClose={() => setSelectedOrderForDetail(null)}
-              statusBarText="COMPROBANTE DE PAGO AUDITABLE // NO LIMITS OS"
+              statusBarText="DETALLE DE COMPRA"
             >
-              <div className="space-y-3 p-2 text-xs bg-white">
-                {/* Cabecera Tipo Comprobante de Pago */}
-                <div className="flex flex-wrap items-start justify-between gap-2 border-b-2 border-gray-800 pb-3">
-                  <div>
-                    <h2 className="text-base font-black text-[#003c74] tracking-tight">
-                      NO LIMITS APPAREL OS
-                    </h2>
-                    <p className="text-[10px] text-gray-600">
-                      RUT: 76.842.119-0 • Giro: Confección y Venta de Indumentaria Cyber-Goth
-                    </p>
-                    <p className="text-[10px] text-gray-600">
-                      Sucursal de Registro de Venta: {selectedOrderForDetail.branchName}
-                    </p>
-                  </div>
-                  <div className="text-right border-2 border-red-700 p-2 rounded-xs bg-red-50/50">
-                    <span className="font-mono font-bold text-red-900 block text-[11px]">
-                      COMPROBANTE DE PAGO
-                    </span>
-                    <span className="font-mono font-black text-sm text-red-700">
-                      {selectedOrderForDetail.orderNumber}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Datos del Cliente y Entrega */}
-                <div className="nl-orders-receipt-info-grid p-2.5 bg-gray-50 border border-gray-300">
-                  <div>
-                    <span className="font-bold text-gray-700 block">Datos del Cliente:</span>
-                    <div className="font-black text-gray-900 mt-0.5">
-                      {selectedOrderForDetail.customerName}
-                    </div>
-                    <div className="text-gray-600 font-mono text-[11px]">
-                      {selectedOrderForDetail.customerPhone}
-                    </div>
-                    <div className="text-gray-600 text-[11px]">
-                      {selectedOrderForDetail.customerEmail}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="font-bold text-gray-700 block">Modalidad de Entrega:</span>
-                    <div className="font-bold text-[#003c74] mt-0.5">
-                      {selectedOrderForDetail.deliveryType === 'Despacho a Domicilio'
-                        ? 'Envío a Domicilio'
-                        : 'Retiro Presencial'}
-                    </div>
-                    {selectedOrderForDetail.paymentMethod === 'Sistema POS' && (
-                      <div className="text-gray-600 text-[11px]">
-                        Venta registrada por:{' '}
-                        <strong className="text-blue-900">
-                          {getAdminNameByBranchId(
-                            selectedOrderForDetail.branchId,
-                            selectedOrderForDetail.registeredByAdmin,
-                            allBranches
-                          )}
-                        </strong>
-                      </div>
-                    )}
-                    {selectedOrderForDetail.deliveryType === 'Retiro en Sucursal' && (
-                      <div className="text-teal-900 text-[11px]">
-                        Sucursal de retiro:{' '}
-                        <strong>
-                          {selectedOrderForDetail.pickupBranchName ||
-                            selectedOrderForDetail.branchName}
-                        </strong>
-                      </div>
-                    )}
-                    {selectedOrderForDetail.shippingCourier && (
-                      <div className="text-gray-600 text-[11px]">
-                        servicio de transporte:{' '}
-                        <strong>{selectedOrderForDetail.shippingCourier}</strong>
-                      </div>
-                    )}
-                    {selectedOrderForDetail.trackingNumber && (
-                      <div className="text-indigo-900 font-mono font-bold text-[11px]">
-                        Código de Seguimiento: {selectedOrderForDetail.trackingNumber}
-                      </div>
-                    )}
-                    {selectedOrderForDetail.shippingAddress && (
-                      <div className="text-gray-600 text-[11px] mt-0.5">
-                        {selectedOrderForDetail.shippingAddress}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Tabla de Productos Comprados */}
-                <div className="border border-gray-300 overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#ece9d8] border-b border-gray-300 font-bold">
-                      <tr>
-                        <th className="p-1.5">PRODUCTO</th>
-                        <th className="p-1.5 text-center">TALLA</th>
-                        <th className="p-1.5 text-center">CANT.</th>
-                        <th className="p-1.5 text-right">PRECIO</th>
-                        <th className="p-1.5 text-right">SUBTOTAL</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {selectedOrderForDetail.items.map((it, idx) => (
-                        <tr key={idx}>
-                          <td className="p-1.5 font-bold text-gray-900 flex items-center gap-2">
-                            <img
-                              src={it.image}
-                              alt=""
-                              className="w-7 h-7 object-cover border border-gray-300 shrink-0"
-                            />
-                            <span>{it.name}</span>
-                          </td>
-                          <td className="p-1.5 text-center font-mono">{it.size || 'Única'}</td>
-                          <td className="p-1.5 text-center font-mono font-bold">{it.quantity}</td>
-                          <td className="p-1.5 text-right font-mono">
-                            ${it.price.toLocaleString('es-CL')}
-                          </td>
-                          <td className="p-1.5 text-right font-mono font-bold text-[#003c74]">
-                            ${it.subtotal.toLocaleString('es-CL')}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Resumen Total y Método de Pago */}
-                <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-gray-100 border border-gray-300">
-                  <div>
-                    <span className="font-bold text-gray-700">Método de Pago:</span>{' '}
-                    <strong className="text-gray-900">
-                      {selectedOrderForDetail.paymentMethod}
-                    </strong>
-                    <div className="text-[10px] text-gray-500 font-mono mt-0.5">
-                      Fecha: {selectedOrderForDetail.date} • Estado: {selectedOrderForDetail.status}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-xs text-gray-700 mr-2">TOTAL FINAL:</span>
-                    <span className="font-mono font-black text-lg text-emerald-800">
-                      ${selectedOrderForDetail.total.toLocaleString('es-CL')}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Notas si existen */}
-                {selectedOrderForDetail.notes && (
-                  <div className="p-2 bg-amber-50 border border-amber-200 text-[11px] text-amber-950">
-                    <strong>Notas de la orden:</strong> {selectedOrderForDetail.notes}
-                  </div>
+              <div className="bg-white p-2 sm:p-4 space-y-3">
+                {receiptLoading ? (
+                  <p className="border border-blue-300 bg-blue-50 p-4 text-blue-950 text-center text-xs">Buscando los datos de esta compra...</p>
+                ) : receiptError ? (
+                  <p className="border border-red-300 bg-red-50 p-4 text-red-950 text-center text-xs">{receiptError}</p>
+                ) : receiptData ? (
+                  <PurchaseReceipt receipt={receiptData}/>
+                ) : (
+                  <p className="border border-amber-300 bg-amber-50 p-4 text-center text-xs">No se encontró un comprobante para esta orden.</p>
                 )}
-
-                {/* Botones */}
-                <div className="flex items-center justify-between pt-2 border-t border-gray-300">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.print();
-                    }}
-                    className="winxp-button text-xs py-1 px-3 text-gray-800 flex items-center gap-1.5 font-bold"
-                  >
-                    <Printer className="w-3.5 h-3.5 text-gray-700" />
-                    <span>Imprimir Comprobante</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOrderForDetail(null)}
-                    className="winxp-button text-xs py-1 px-4 text-blue-900 font-bold"
-                  >
-                    Cerrar Detalle
-                  </button>
+                <div className="flex justify-end border-t border-gray-300 pt-2">
+                  <button type="button" className="winxp-button px-4 py-1.5 text-xs font-bold" onClick={() => setSelectedOrderForDetail(null)}>Cerrar ventana</button>
                 </div>
               </div>
             </WindowFrame>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

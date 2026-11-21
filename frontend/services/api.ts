@@ -26,44 +26,25 @@ const DIRECT_BACKEND_URL = 'http://localhost:5000/api';
 export interface AuthResponse {
   ok: boolean;
   user: User;
-  token: string;
+  token?: string;
 }
 
 class ApiClient {
-  private token: string | null = null;
-
-  constructor() {
-    this.token = localStorage.getItem('nolimits_jwt_token');
-  }
-
-  getToken(): string | null {
-    return this.token || localStorage.getItem('nolimits_jwt_token');
-  }
-
-  setToken(token: string) {
-    this.token = token;
-    localStorage.setItem('nolimits_jwt_token', token);
-  }
-
-  clearToken() {
-    this.token = null;
-    localStorage.removeItem('nolimits_jwt_token');
-  }
+  // Sesión gestionada por cookie HttpOnly; no conservar tokens en JavaScript.
+  getToken(): string | null { return null; }
+  setToken(_token: string): void { /* Se usa la cookie de sesión segura. */ }
+  clearToken(): void { /* El backend revoca la sesión vía logout. */ }
 
   /**
    * Realiza una petición HTTP hacia el Backend (intenta /api por proxy y, si falla por red en local,
    * intenta http://localhost:5000/api directamente).
    */
   private async fetchBackend<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const activeToken = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
     };
 
-    if (activeToken) {
-      headers['Authorization'] = `Bearer ${activeToken}`;
-    }
 
     const executeFetch = async (baseUrl: string): Promise<Response> => {
       return fetch(`${baseUrl}${endpoint}`, {
@@ -111,9 +92,6 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    if (res.token) {
-      this.setToken(res.token);
-    }
     return res;
   }
 
@@ -133,9 +111,6 @@ class ApiClient {
         phone: extra?.phone,
       }),
     });
-    if (res.token) {
-      this.setToken(res.token);
-    }
     return res;
   }
 
@@ -149,9 +124,6 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(payload || {}),
     });
-    if (res.token) {
-      this.setToken(res.token);
-    }
     return res;
   }
 

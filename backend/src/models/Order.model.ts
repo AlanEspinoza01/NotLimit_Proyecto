@@ -55,6 +55,8 @@ export interface IOrder extends Document {
   confirmedRevenue: number;
   paymentStatus: 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'REFUNDED';
   paymentMethod: string;
+  webpayAuthorizationCode?: string;
+  webpayTransactionDate?: string;
   deliveryType: 'envio' | 'retiro';
   pickupBranchId?: string | null;
   shippingDetails?: IShippingDetails | null;
@@ -144,6 +146,8 @@ const OrderSchema = new Schema<IOrder>(
       default: 'CONFIRMED',
     },
     paymentMethod: { type: String, required: true, trim: true },
+    webpayAuthorizationCode: { type: String, default: '' },
+    webpayTransactionDate: { type: String, default: '' },
     deliveryType: {
       type: String,
       enum: ['envio', 'retiro'],

@@ -3,7 +3,10 @@ import { INITIAL_PRODUCTS, INITIAL_BRANCHES } from '../../../services/mockData';
 export const STORAGE_ORDERS_KEY = 'nl_super_admin_purchase_orders_v3';
 
 // Métodos de pago sincronizados con el esquema actual
-export type OrderPaymentMethod = 'Sistema POS' | 'Khipu' | 'Webpay' | 'Mercado Pago';
+export type OrderPaymentMethod = 'Sistema POS' | 'Khipu' | 'Webpay' | 'Mercado Pago' | 'Otro';
+
+// Estado del COBRO, independiente de los pasos de preparación y entrega.
+export type OrderPaymentStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'REFUNDED';
 
 // Servicios de transporte sincronizados
 export type ShippingCourierType = 'Starken' | 'Blue Express' | 'Paket';
@@ -13,6 +16,7 @@ export type PurchaseOrderStatus =
   | 'Pendiente de Pago'
   | 'Pago Confirmando'
   | 'Pago Anulado'
+  | 'Reembolsado'
   | 'Solicitud recibida'
   | 'En Preparación'
   | 'En transito'
@@ -55,6 +59,11 @@ export interface PurchaseOrderRecord {
   date: string;
   timestamp: number;
   total: number;
+  // Se usa para filtros y métricas. Nunca inferir un pago desde un estado logístico.
+  paymentStatus?: OrderPaymentStatus;
+  confirmedRevenue?: number;
+  subtotal?: number;
+  shippingCost?: number;
   status: PurchaseOrderStatus;
   paymentMethod: OrderPaymentMethod;
   items: PurchasedProductItem[];
@@ -139,6 +148,12 @@ export const STATUS_DEFINITIONS: Record<
     label: 'Pago Confirmando',
     description: 'Exclusivo Sistema POS / Khipu: Cuando se confirma el pago del cliente antes de pasar a Solicitud recibida',
     badgeClass: 'bg-blue-100 text-blue-900 border-blue-400 font-bold',
+    category: 'pago'
+  },
+  'Reembolsado': {
+    label: 'Reembolsado',
+    description: 'El pago fue devuelto. No se contabiliza como ingreso confirmado.',
+    badgeClass: 'bg-violet-100 text-violet-950 border-violet-400 font-bold',
     category: 'pago'
   },
   'Pago Anulado': {

@@ -40,17 +40,29 @@ import {
 } from '../controllers/review.controller';
 
 import authenticateUser from '../middleware/authenticateUser';
+import validateRequestOrigin from '../middleware/validateRequestOrigin';
+import {getAdminCouponCatalog,getAdminCouponHistory,createAdminCoupon,updateAdminCoupon,deleteAdminCoupon} from '../controllers/coupon.controller';
 import authorizeRoles from '../middleware/authorizeRoles';
 import { uploadMiddleware } from '../config/cloudinary';
+import { getAdminOrderReceipt } from '../controllers/receipt.controller';
 
 const adminRouter = Router();
 
 // Middleware a nivel de router: Exige sesión iniciada y rol de super_admin
 adminRouter.use(authenticateUser, authorizeRoles('super_admin'));
+// Protege operaciones con cookie frente a llamadas desde orígenes ajenos.
+adminRouter.use((req,res,next)=>['GET','HEAD','OPTIONS'].includes(req.method)?next():validateRequestOrigin(req,res,next));
+adminRouter.get('/coupons',getAdminCouponCatalog);
+adminRouter.get('/coupons/redemptions',getAdminCouponHistory);
+adminRouter.post('/coupons',createAdminCoupon);
+adminRouter.put('/coupons/:id',updateAdminCoupon);
+adminRouter.patch('/coupons/:id',updateAdminCoupon);
+adminRouter.delete('/coupons/:id',deleteAdminCoupon);
 
 // GET /api/admin/dashboard
 adminRouter.get('/dashboard', getDashboardMetrics);
 adminRouter.get('/orders', getOrders);
+adminRouter.get('/orders/:id/receipt', getAdminOrderReceipt);
 adminRouter.post('/orders', createOrder); 
 adminRouter.get('/store-settings', getStoreSettings);
 

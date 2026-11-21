@@ -21,7 +21,6 @@ import { useBranch, formatBranchPickupSummary } from '../context/BranchContext';
 import { PixelIcon } from '../components/common/PixelIcon';
 import { CheckoutCustomerData, Product, PaymentMethodType } from '../types';
 import { calculateCourierQuotes, getWeightTierInfo } from '../services/shippingQuotesEngine';
-import { markRedeemedCouponAsUsed } from '../services/couponsService';
 import api from '../api/axios';
 
 const isApparelCategory = (categoryName?: string) => {
@@ -182,104 +181,54 @@ export const CheckoutView: React.FC = () => {
   const finalTotal = Math.max(0, subtotal - discount + shippingFeeToPayOnline);
   const weightTierInfo = getWeightTierInfo(cartTotalWeightGrams);
 
-  const handleSimulatePayment = async () => {
-    setIsProcessing(true);
-    setCheckoutError(null);
 
-    const orderNumber = `NL-${Math.floor(1000 + Math.random() * 9000)}`;
-    const nowStr = new Date().toLocaleDateString('es-CL', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    const orderPayload = {
-      orderNumber,
-      date: nowStr,
-      items: items.map((item) => ({
-        productId: item.product.id || item.productId,
-        sku: item.product.sku || 'NL-SKU',
-        name: item.product.title,
-        title: item.product.title,
-        size: item.selectedSize,
-        color: item.selectedColor.name,
-        quantity: item.quantity,
-        price: item.product.salePrice ?? item.product.price,
-        image: item.product.images[0]
-      })),
-      total: finalTotal,
-      subtotal,
-      discount,
-      couponUsed: appliedCoupon ? appliedCoupon.code : undefined,
-      shippingFee: shippingFeeToPayOnline,
-      shippingCost: shippingFeeToPayOnline,
-      deliveryMethod: checkoutData.deliveryMethod,
-      branchName: selectedBranch?.name || 'Viña del Mar',
-      branchId: selectedBranch?.id || 'vina_del_mar',
-      shippingAddress:
-        checkoutData.deliveryMethod === 'shipping'
-          ? `${checkoutData.shippingStreet || checkoutData.shippingAddress || 'Av. Libertad 1400'}, ${
-              checkoutData.shippingComuna || checkoutData.shippingCity || 'Viña del Mar'
-            }`
-          : undefined,
-      shippingStreet: checkoutData.shippingStreet || checkoutData.shippingAddress || '',
-      shippingNumber: checkoutData.shippingNumber || '',
-      shippingApartment: checkoutData.shippingApartment || '',
-      shippingRegion: checkoutData.shippingRegion,
-      shippingComuna: checkoutData.shippingComuna,
-      courier:
-        checkoutData.shippingCourier || (activeQuote ? activeQuote.courierName : 'Starken'),
-      shippingPaymentMode: checkoutData.shippingPaymentMode,
-      weightGrams: cartTotalWeightGrams,
-      weightTier: weightTierInfo?.tierNumber || 5,
-      paymentGateway: selectedPaymentGateway,
-      customerName: checkoutData.customerName,
-      customerRut: checkoutData.customerRut,
-      customerPhone: checkoutData.customerPhone,
-      customerEmail: checkoutData.customerEmail,
-      status: 'Solicitud recibida'
-    };
-
-    try {
-      const response = await api.post('/orders/checkout', orderPayload);
-      const savedMongoOrder = response.data?.data;
-      const finalOrderNumber = savedMongoOrder?.orderNumber || orderNumber;
-
-      const localOrderRecord = {
-        ...orderPayload,
-        id: savedMongoOrder?._id?.toString() || `ord_${Date.now()}`,
-        orderNumber: finalOrderNumber
-      };
-
-      try {
-        const existing = JSON.parse(localStorage.getItem('nolimits_user_orders') || '[]');
-        localStorage.setItem(
-          'nolimits_user_orders',
-          JSON.stringify([localOrderRecord, ...existing])
-        );
-      } catch {
-        // ignore
-      }
-
-      if (appliedCoupon) {
-        markRedeemedCouponAsUsed(appliedCoupon.code, finalOrderNumber);
-      }
-
-      setConfirmedOrderId(finalOrderNumber);
-      setConfirmedDate(nowStr);
-      clearCart();
-    } catch (error: any) {
-      console.error('Error procesando compra en MongoDB:', error);
-      const msg =
-        error.response?.data?.message ||
-        'No se pudo procesar tu pedido en el servidor. Intenta nuevamente.';
-      setCheckoutError(msg);
-    } finally {
-      setIsProcessing(false);
-    }
+// El carrito y los cupones se calculan visualmente como antes, pero el backend
+// verificará nuevamente productos, descuentos, cupones y despacho antes de cobrar.
+const handleStartWebpay = async () => {
+  if (selectedPaymentGateway !== 'webpay') {
+    setCheckoutError('Por ahora solo Webpay Plus está integrado. Los otros medios no pueden confirmar una venta.');
+    return;
+  }
+  if (isProcessing) return;
+  setIsProcessing(true);
+  setCheckoutError(null);
+  const requestId = crypto.randomUUID();
+  const payload = {
+    requestId,
+    items: items.map(item => ({productId: item.product.id || item.productId,
+      size: item.selectedSize, quantity: item.quantity})),
+    total: finalTotal,
+    couponUsed: appliedCoupon?.code || '',
+    shippingPaymentMode: checkoutData.shippingPaymentMode,
+    deliveryMethod: checkoutData.deliveryMethod,
+    branchId: selectedBranch?.id || 'vina_del_mar',
+    branchName: selectedBranch?.name || 'Sucursal',
+    shippingRegion: checkoutData.shippingRegion,
+    shippingComuna: checkoutData.shippingComuna,
+    shippingStreet: checkoutData.shippingStreet,
+    shippingNumber: checkoutData.shippingNumber,
+    shippingApartment: checkoutData.shippingApartment,
+    courier: checkoutData.shippingCourier,
+    customerName: checkoutData.customerName,
+    customerEmail: checkoutData.customerEmail,
+    customerPhone: checkoutData.customerPhone,
+    customerRut: checkoutData.customerRut
   };
+  try {
+    const res = await api.post('/payments/webpay/start', payload);
+    const {orderNumber, url, token, resultKey} = res.data.data;
+    // Se guarda por pestaña: no exponemos la clave de resultado en la URL.
+    sessionStorage.setItem('nolimits_webpay_order_'+orderNumber,
+      JSON.stringify({resultKey,couponCode:appliedCoupon?.code||''}));
+    const form = document.createElement('form');
+    form.method='POST'; form.action=url;
+    const hidden=document.createElement('input'); hidden.type='hidden';hidden.name='token_ws';hidden.value=token;
+    form.appendChild(hidden);document.body.appendChild(form);form.submit();
+  } catch (error: any) {
+    setCheckoutError(error.response?.data?.message || 'No se pudo iniciar Webpay. Comprueba el estado de tu pedido antes de reintentar.');
+    setIsProcessing(false);
+  }
+};
 
   if (confirmedOrderId) {
     return (
@@ -824,11 +773,11 @@ export const CheckoutView: React.FC = () => {
                 <button
                   type="button"
                   disabled={isProcessing}
-                  onClick={handleSimulatePayment}
+                  onClick={handleStartWebpay}
                   className="winxp-button winxp-button-primary text-xs py-2.5 w-full font-bold text-blue-900 shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {isProcessing ? (
-                    <span>Procesando orden y descontando stock en MongoDB...</span>
+                    <span>Verificando total y reservando stock...</span>
                   ) : (
                     <>
                       <span>CONFIRMAR Y PAGAR</span>

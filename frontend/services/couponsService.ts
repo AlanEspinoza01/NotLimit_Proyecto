@@ -1,3 +1,5 @@
+import api from '../api/axios';
+
 export interface AdminCouponTemplate {
   id: string;
   name: string;
@@ -40,109 +42,8 @@ export const STORAGE_COUPONS_KEY = 'nl_admin_coupons_catalog_v1';
 export const STORAGE_REDEEMED_COUPONS_KEY = 'nolimits_redeemed_coupons';
 export const STORAGE_ACTIVE_CART_COUPON_KEY = 'nolimits_active_cart_coupon_v1';
 
-export const DEFAULT_ADMIN_COUPONS: AdminCouponTemplate[] = [
-  {
-    id: 'coup_3k',
-    name: 'Cupón $3.000 CLP de Descuento',
-    badge: 'POPULAR',
-    pointsCost: 300,
-    code: 'DROP3K',
-    discountType: 'fixed',
-    discountValue: 3000,
-    expirationRule: '2 semanas de vida tiene después del canjeo',
-    expirationDays: 14,
-    minPurchase: 0,
-    totalRedemptions: 48,
-    maxUses: 100,
-    isActive: true,
-    createdAt: '2026-03-01'
-  },
-  {
-    id: 'coup_5k',
-    name: 'Cupón $5.000 CLP de Descuento',
-    badge: 'MÁS CANJEADO',
-    pointsCost: 500,
-    code: 'CYBER5K',
-    discountType: 'fixed',
-    discountValue: 5000,
-    expirationRule: '2 semanas de vida tiene después del canjeo',
-    expirationDays: 14,
-    minPurchase: 25000,
-    totalRedemptions: 32,
-    maxUses: 100,
-    isActive: true,
-    createdAt: '2026-03-10'
-  },
-  {
-    id: 'coup_10k',
-    name: 'Cupón $10.000 CLP VIP Drop',
-    badge: 'PREMIO MAYOR',
-    pointsCost: 1000,
-    code: 'NOLIMITS10K',
-    discountType: 'fixed',
-    discountValue: 10000,
-    expirationRule: '4 semanas de vida tiene después del canjeo',
-    expirationDays: 28,
-    minPurchase: 40000,
-    totalRedemptions: 19,
-    maxUses: 50,
-    isActive: true,
-    createdAt: '2026-03-15'
-  },
-  {
-    id: 'coup_freeship',
-    name: 'Cupón Despacho Gratis Nacional',
-    badge: 'AHORRO ENVÍO',
-    pointsCost: 350,
-    code: 'FREESHIP',
-    discountType: 'free_shipping',
-    discountValue: 0,
-    expirationRule: '3 semanas de vida tiene después del canjeo',
-    expirationDays: 21,
-    minPurchase: 20000,
-    totalRedemptions: 24,
-    maxUses: 80,
-    isActive: true,
-    createdAt: '2026-03-20'
-  },
-  {
-    id: 'coup_cyber15',
-    name: 'Bienvenida Cyber Club Y2K (15% OFF)',
-    badge: 'CLUB Y2K',
-    pointsCost: 450,
-    code: 'NL-WELCOME',
-    discountType: 'percentage',
-    discountValue: 15,
-    expirationRule: '2 semanas de vida tiene después del canjeo',
-    expirationDays: 14,
-    minPurchase: 25000,
-    totalRedemptions: 12,
-    maxUses: 100,
-    isActive: true,
-    createdAt: '2026-04-01'
-  }
-];
-
-const INITIAL_REDEEMED_COUPONS: RedeemedUserCoupon[] = [
-  {
-    id: 'red_init_01',
-    code: 'DROP3K-XP-7721',
-    templateId: 'coup_3k',
-    title: 'Cupón $3.000 CLP de Descuento',
-    discountType: 'fixed',
-    discountValue: 3000,
-    discount: '$3.000 CLP',
-    minPurchase: 0,
-    pointsSpent: 300,
-    userEmail: 'valeria.k@gmail.com',
-    userName: 'Valeria Neo-Goth',
-    date: '10 de Octubre 2026',
-    redeemedAtIso: '2026-10-10T12:00:00.000Z',
-    expiresAtIso: '2026-11-25T23:59:59.000Z',
-    expiresAtLabel: '25 de Noviembre 2026 (2 semanas)',
-    status: 'disponible'
-  }
-];
+// No cargar promociones ni contadores ficticios por defecto. Se gestiona todo desde MongoDB.
+export const DEFAULT_ADMIN_COUPONS: AdminCouponTemplate[] = [];
 
 export const formatClpAmount = (val: number): string => {
   return '$' + Math.round(val).toLocaleString('es-CL');
@@ -221,43 +122,39 @@ export const normalizeAdminCoupon = (raw: any, index: number = 0): AdminCouponTe
   };
 };
 
-export const loadAdminCouponsCatalog = (): AdminCouponTemplate[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_COUPONS_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const normalized = parsed.map((item, idx) => normalizeAdminCoupon(item, idx));
-        // Si solo estaban los 3 cupones antiguos de prueba sin los del catálogo de puntos, aseguramos que estén integrados
-        const hasDefault3k = normalized.some((c) => c.id === 'coup_3k' || c.code.includes('DROP3K'));
-        if (!hasDefault3k && normalized.length <= 3) {
-          const merged = [
-            ...DEFAULT_ADMIN_COUPONS.slice(0, 4),
-            ...normalized.filter((c) => !DEFAULT_ADMIN_COUPONS.some((d) => d.id === c.id))
-          ];
-          localStorage.setItem(STORAGE_COUPONS_KEY, JSON.stringify(merged));
-          return merged;
-        }
-        return normalized;
-      }
-    }
-  } catch {
-    // ignore
-  }
-  try {
-    localStorage.setItem(STORAGE_COUPONS_KEY, JSON.stringify(DEFAULT_ADMIN_COUPONS));
-  } catch {
-    // ignore
-  }
-  return DEFAULT_ADMIN_COUPONS;
+// Caché efímera solo para dibujar la interfaz; no es fuente de verdad ni persiste entre sesiones.
+let catalogCache: AdminCouponTemplate[] = [];
+let walletCache: RedeemedUserCoupon[] = [];
+let cacheIdentity = '';
+let cacheGeneration = 0;
+const emitCouponEvent = () => { if (typeof window !== 'undefined') window.dispatchEvent(new Event('nl_coupons_updated')); };
+
+export const clearCouponCache = (userId = ''): void => {
+  ++cacheGeneration; cacheIdentity = userId; catalogCache = []; walletCache = []; emitCouponEvent();
+};
+export const loadAdminCouponsCatalog = (): AdminCouponTemplate[] => catalogCache.map(c=>({...c}));
+export const loadRedeemedCoupons = (): RedeemedUserCoupon[] => walletCache.map(c=>({...c}));
+// Estas funciones antiguas ahora actualizan SOLO la vista en memoria.
+export const saveAdminCouponsCatalog = (list: AdminCouponTemplate[]): void => {
+  catalogCache = list.map(c=>({...c})); emitCouponEvent();
+};
+export const saveRedeemedCoupons = (list: RedeemedUserCoupon[]): void => {
+  walletCache = list.map(c=>({...c})); emitCouponEvent();
 };
 
-export const saveAdminCouponsCatalog = (coupons: AdminCouponTemplate[]): void => {
-  try {
-    localStorage.setItem(STORAGE_COUPONS_KEY, JSON.stringify(coupons));
-    window.dispatchEvent(new Event('nl_coupons_updated'));
-  } catch {
-    // ignore
+/** Consulta las plantillas y los códigos REALES en MongoDB; no migra automáticamente localStorage. */
+export const refreshCouponsFromBackend = async (userId = cacheIdentity): Promise<void> => {
+  const generation = cacheGeneration;
+  const identity = userId;
+  const catalogResponse = await api.get('/payments/coupons/catalog');
+  if (generation !== cacheGeneration || identity !== cacheIdentity) return;
+  saveAdminCouponsCatalog(Array.isArray(catalogResponse.data?.data) ? catalogResponse.data.data : []);
+  if (identity) {
+    const walletResponse = await api.get('/payments/coupons/mine');
+    if (generation !== cacheGeneration || identity !== cacheIdentity) return;
+    saveRedeemedCoupons(Array.isArray(walletResponse.data?.data) ? walletResponse.data.data : []);
+  } else {
+    saveRedeemedCoupons([]);
   }
 };
 
@@ -320,35 +217,6 @@ export const normalizeRedeemedCoupon = (raw: any, index: number = 0): RedeemedUs
   };
 };
 
-export const loadRedeemedCoupons = (): RedeemedUserCoupon[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_REDEEMED_COUPONS_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((c, idx) => normalizeRedeemedCoupon(c, idx));
-      }
-    }
-  } catch {
-    // ignore
-  }
-  try {
-    localStorage.setItem(STORAGE_REDEEMED_COUPONS_KEY, JSON.stringify(INITIAL_REDEEMED_COUPONS));
-  } catch {
-    // ignore
-  }
-  return INITIAL_REDEEMED_COUPONS;
-};
-
-export const saveRedeemedCoupons = (list: RedeemedUserCoupon[]): void => {
-  try {
-    localStorage.setItem(STORAGE_REDEEMED_COUPONS_KEY, JSON.stringify(list));
-    window.dispatchEvent(new Event('nl_coupons_updated'));
-  } catch {
-    // ignore
-  }
-};
-
 /**
  * Genera un código único e irrepetible de 1 solo uso para un canje de usuario.
  * Ejemplo: si el prefijo del Admin es "CYBER5K", genera "CYBER5K-XP-4829"
@@ -385,66 +253,11 @@ export const generateUniqueSingleUseCode = (basePrefix: string, existingRedeemed
  * 3. Incrementa el contador de canjes (totalRedemptions) en la tabla del Admin
  * 4. Guarda el cupón en la billetera del usuario
  */
-export const redeemCouponTemplateForUser = (params: {
-  template: AdminCouponTemplate;
-  userEmail: string;
-  userName: string;
-}): { redeemedCoupon: RedeemedUserCoupon; updatedCatalog: AdminCouponTemplate[]; updatedRedeemedList: RedeemedUserCoupon[] } => {
-  const { template, userEmail, userName } = params;
-  const currentCatalog = loadAdminCouponsCatalog();
-  const currentRedeemed = loadRedeemedCoupons();
-
-  const uniqueCode = generateUniqueSingleUseCode(template.code, currentRedeemed);
-  const now = new Date();
-  const daysToLive = template.expirationDays || 14;
-  const expiresDate = new Date(now.getTime() + daysToLive * 24 * 60 * 60 * 1000);
-
-  const dateFormatted = now.toLocaleDateString('es-CL', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-
-  const expiresFormatted = expiresDate.toLocaleDateString('es-CL', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-
-  const newRedeemed: RedeemedUserCoupon = {
-    id: `red_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-    code: uniqueCode,
-    templateId: template.id,
-    title: template.name,
-    discountType: template.discountType,
-    discountValue: template.discountValue,
-    discount: getCouponShortDiscountLabel(template),
-    minPurchase: template.minPurchase,
-    pointsSpent: template.pointsCost,
-    userEmail: userEmail || 'cliente@gmail.com',
-    userName: userName || 'Cliente NoLimits',
-    date: dateFormatted,
-    redeemedAtIso: now.toISOString(),
-    expiresAtIso: expiresDate.toISOString(),
-    expiresAtLabel: `${expiresFormatted} (${daysToLive} días)`,
-    status: 'disponible'
-  };
-
-  const updatedRedeemedList = [newRedeemed, ...currentRedeemed];
-  saveRedeemedCoupons(updatedRedeemedList);
-
-  const updatedCatalog = currentCatalog.map((item) =>
-    item.id === template.id
-      ? { ...item, totalRedemptions: (item.totalRedemptions || 0) + 1 }
-      : item
-  );
-  saveAdminCouponsCatalog(updatedCatalog);
-
-  return {
-    redeemedCoupon: newRedeemed,
-    updatedCatalog,
-    updatedRedeemedList
-  };
+export const redeemCouponTemplateForUser = (_params: {
+  template: AdminCouponTemplate; userEmail: string; userName: string;
+}): never => {
+  // Por seguridad el canje debe ejecutarse en el backend con una transacción MongoDB.
+  throw new Error('Canje local deshabilitado: utiliza POST /api/payments/coupons/redeem');
 };
 
 /**
@@ -523,32 +336,7 @@ export const validateRedeemedCouponForCart = (
 /**
  * Marca un código único como 'usado' de forma permanente cuando el usuario confirma su compra en Checkout
  */
-export const markRedeemedCouponAsUsed = (code: string, orderNumber: string): void => {
-  const cleanCode = (code || '').trim().toUpperCase();
-  if (!cleanCode) return;
-
-  const allRedeemed = loadRedeemedCoupons();
-  const usedDateStr = new Date().toLocaleDateString('es-CL', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-
-  const updated = allRedeemed.map((c) =>
-    c.code.toUpperCase() === cleanCode
-      ? {
-          ...c,
-          status: 'usado' as const,
-          usedAtDate: usedDateStr,
-          usedOrderNumber: orderNumber
-        }
-      : c
-  );
-
-  saveRedeemedCoupons(updated);
-  try {
-    localStorage.removeItem(STORAGE_ACTIVE_CART_COUPON_KEY);
-  } catch {
-    // ignore
-  }
+export const markRedeemedCouponAsUsed = (_code: string, _orderNumber: string): void => {
+  // No cambia estados económicos en el navegador: sincroniza la decisión del backend.
+  void refreshCouponsFromBackend().catch((error) => console.error('No se pudieron actualizar cupones', error));
 };

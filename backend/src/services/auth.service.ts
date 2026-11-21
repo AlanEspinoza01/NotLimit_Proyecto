@@ -546,12 +546,13 @@ export const updateUserProfileService = async (
   if (data.phone !== undefined) updateFields.phone = String(data.phone).trim();
   if (data.avatarUrl !== undefined)
     updateFields.avatarUrl = String(data.avatarUrl);
-  if (data.loyaltyPoints !== undefined)
-    updateFields.loyaltyPoints = Number(data.loyaltyPoints);
-  if (data.lastPointsReason !== undefined)
-    updateFields.lastPointsReason = String(data.lastPointsReason);
+  // Puntos son contabilidad del servidor: jamás aceptar cambios desde el perfil.
+  if (data.loyaltyPoints !== undefined || data.lastPointsReason !== undefined || data.role !== undefined || data.isActive !== undefined || data.totalSpentClp !== undefined || data.totalOrdersCount !== undefined) {
+    throw new ApiError(403, 'No puedes modificar puntos, roles ni datos económicos desde el perfil');
+  }
   if (Array.isArray(data.addresses)) updateFields.addresses = data.addresses;
-  if (Array.isArray(data.tags)) updateFields.tags = data.tags;
+  // Las etiquetas del cliente solo las puede editar un administrador desde su módulo.
+  if (data.tags !== undefined) throw new ApiError(403, 'Las etiquetas son administrativas');
   if (Array.isArray(data.wishlistProductIds)) {
     updateFields.wishlistProductIds = data.wishlistProductIds
       .filter((id: any) => mongoose.Types.ObjectId.isValid(String(id)))

@@ -1012,23 +1012,10 @@ export const PageEditorView: React.FC = () => {
   // ==========================================================================
   // ESTADO 5: EDITAR CUPONES EXCLUSIVOS (CONECTADO CON PUNTOS ACUMULADOS)
   // ==========================================================================
-  const [coupons, setCoupons] = useState<CouponItem[]>(() => loadAdminCouponsCatalog());
-  const [redeemedCouponsLog, setRedeemedCouponsLog] = useState<RedeemedUserCoupon[]>(() =>
-    loadRedeemedCoupons()
-  );
+  const [coupons, setCoupons] = useState<CouponItem[]>([]);
+  const [redeemedCouponsLog, setRedeemedCouponsLog] = useState<RedeemedUserCoupon[]>([]);
 
-  useEffect(() => {
-    const syncCoupons = () => {
-      setCoupons(loadAdminCouponsCatalog());
-      setRedeemedCouponsLog(loadRedeemedCoupons());
-    };
-    window.addEventListener('nl_coupons_updated', syncCoupons);
-    window.addEventListener('storage', syncCoupons);
-    return () => {
-      window.removeEventListener('nl_coupons_updated', syncCoupons);
-      window.removeEventListener('storage', syncCoupons);
-    };
-  }, []);
+  // El editor solo presenta información obtenida de la API administrativa.
 
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [editingCouponId, setEditingCouponId] = useState<string | null>(null);
@@ -1094,112 +1081,66 @@ export const PageEditorView: React.FC = () => {
     setCouponModalOpen(true);
   };
 
+  // Releer el estado verdadero después de cada cambio: nunca confirmar antes de MongoDB.
+  const refreshAdminCoupons = async (): Promise<void> => {
+    const [catalog, log] = await Promise.all([
+      api.get('/admin/coupons'), api.get('/admin/coupons/redemptions')
+    ]);
+    const rows: CouponItem[] = Array.isArray(catalog.data?.data) ? catalog.data.data : [];
+    setCoupons(rows);
+    saveAdminCouponsCatalog(rows);
+    setRedeemedCouponsLog(Array.isArray(log.data?.data) ? log.data.data : []);
+  };
+
   const handleToggleCouponActive = async (coup: CouponItem) => {
-    const updated = coupons.map((c) =>
-      c.id === coup.id ? { ...c, isActive: !c.isActive } : c
-    );
-    setCoupons(updated);
-    saveAdminCouponsCatalog(updated);
     try {
-      await syncStoreSettingsToBackend({ coupons: updated });
-    } catch (e) {}
-    setFeedback({
-      type: 'success',
-      message: `✓ Cupón "${coup.name}" ahora está ${!coup.isActive ? 'ACTIVO' : 'PAUSADO'} en MongoDB.`
-    });
-    setTimeout(() => setFeedback(null), 3000);
+      await api.patch(`/admin/coupons/${encodeURIComponent(coup.id)}`, {isActive: !coup.isActive});
+      await refreshAdminCoupons();
+      setFeedback({type:'success',message:`Cupón ${!coup.isActive ? 'activado' : 'pausado'} en MongoDB`});
+    } catch (error: any) {
+      setFeedback({type:'error',message:error.response?.data?.message || 'No se pudo actualizar el cupón'});
+    }
   };
 
   const handleSaveCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!couponName.trim() || !couponCode.trim()) return;
-    if (couponDiscountType !== 'free_shipping' && !couponDiscountValue) return;
-
     let days = 14;
     if (couponExpirationRule.includes('1 semana')) days = 7;
     else if (couponExpirationRule.includes('2 semana')) days = 14;
     else if (couponExpirationRule.includes('3 semana')) days = 21;
     else if (couponExpirationRule.includes('4 semana')) days = 28;
-
-    const cleanPrefix = couponCode.trim().toUpperCase().replace(/-XP-\d+$/, '');
-    const ptsCost = Math.max(10, Number(couponPointsCost) || 300);
-    const maxUsesNum = Math.max(1, Number(couponMaxUses) || 100);
-    const discVal = couponDiscountType === 'free_shipping' ? 0 : Number(couponDiscountValue);
-
-    let updatedList: CouponItem[] = [];
-
-    if (editingCouponId) {
-      updatedList = coupons.map((c) =>
-        c.id === editingCouponId
-          ? {
-              ...c,
-              name: couponName.trim(),
-              badge: couponBadge.trim() || 'EXCLUSIVO',
-              pointsCost: ptsCost,
-              code: cleanPrefix,
-              discountType: couponDiscountType,
-              discountValue: discVal,
-              expirationRule: couponExpirationRule,
-              expirationDays: days,
-              minPurchase: Number(couponMinPurchase) || 0,
-              maxUses: maxUsesNum
-            }
-          : c
-      );
-      setCoupons(updatedList);
-      saveAdminCouponsCatalog(updatedList);
-      setFeedback({
-        type: 'success',
-        message: `✓ Cupón "${couponName.trim()}" (${ptsCost} Pts) actualizado en MongoDB.`
-      });
-    } else {
-      const newCoup: CouponItem = {
-        id: `coup_${Date.now()}`,
-        name: couponName.trim(),
-        badge: couponBadge.trim() || 'EXCLUSIVO',
-        pointsCost: ptsCost,
-        code: cleanPrefix,
-        discountType: couponDiscountType,
-        discountValue: discVal,
-        expirationRule: couponExpirationRule,
-        expirationDays: days,
-        minPurchase: Number(couponMinPurchase) || 0,
-        totalRedemptions: 0,
-        maxUses: maxUsesNum,
-        isActive: true,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      updatedList = [newCoup, ...coupons];
-      setCoupons(updatedList);
-      saveAdminCouponsCatalog(updatedList);
-      setFeedback({
-        type: 'success',
-        message: `✓ ¡Nuevo cupón "${newCoup.name}" (${ptsCost} Pts) guardado en MongoDB!`
-      });
+    const payload = {
+      name: couponName.trim(), badge: couponBadge.trim() || 'EXCLUSIVO',
+      pointsCost: Number(couponPointsCost), code: couponCode.trim().toUpperCase().replace(/-XP-\d+$/, ''),
+      discountType: couponDiscountType,
+      discountValue: couponDiscountType === 'free_shipping' ? 0 : Number(couponDiscountValue),
+      expirationDays: days, minPurchase: Number(couponMinPurchase) || 0,
+      maxUses: Number(couponMaxUses)
+    };
+    if (!payload.name || !payload.code || payload.pointsCost <= 0 || payload.maxUses < 1) {
+      setFeedback({type:'error',message:'Revisa nombre, prefijo, puntos y límite de canjes'});return;
     }
-
     try {
-      await syncStoreSettingsToBackend({ coupons: updatedList });
-    } catch (err) {}
-
-    setCouponModalOpen(false);
-    setTimeout(() => setFeedback(null), 3500);
+      if (editingCouponId) await api.put(`/admin/coupons/${encodeURIComponent(editingCouponId)}`,payload);
+      else await api.post('/admin/coupons',payload);
+      await refreshAdminCoupons();
+      setCouponModalOpen(false);
+      setFeedback({type:'success',message:'Cupón guardado correctamente en MongoDB'});
+    } catch (error: any) {
+      setFeedback({type:'error',message:error.response?.data?.message || 'No se pudo guardar el cupón'});
+    }
   };
 
   const handleConfirmDeleteCoupon = async () => {
     if (!couponToDelete) return;
-    const updated = coupons.filter((c) => c.id !== couponToDelete.id);
-    setCoupons(updated);
-    saveAdminCouponsCatalog(updated);
     try {
-      await syncStoreSettingsToBackend({ coupons: updated });
-    } catch (e) {}
-    setFeedback({
-      type: 'success',
-      message: `✓ Cupón "${couponToDelete.name}" eliminado de MongoDB.`
-    });
-    setCouponToDelete(null);
-    setTimeout(() => setFeedback(null), 3000);
+      await api.delete(`/admin/coupons/${encodeURIComponent(couponToDelete.id)}`);
+      await refreshAdminCoupons();
+      setCouponToDelete(null);
+      setFeedback({type:'success',message:'Cupón retirado del catálogo de MongoDB'});
+    } catch (error: any) {
+      setFeedback({type:'error',message:error.response?.data?.message || 'No se pudo eliminar el cupón'});
+    }
   };
 
   // ==========================================================================
@@ -1498,10 +1439,12 @@ export const PageEditorView: React.FC = () => {
           setShippingHistory(dbData.shippingHistory);
           localStorage.setItem(STORAGE_SHIPPING_HISTORY_KEY, JSON.stringify(dbData.shippingHistory));
         }
-        if (Array.isArray(dbData.coupons) && dbData.coupons.length > 0) {
+        if (Array.isArray(dbData.coupons)) {
           setCoupons(dbData.coupons);
           saveAdminCouponsCatalog(dbData.coupons);
         }
+        const redemptions = await api.get('/admin/coupons/redemptions');
+        setRedeemedCouponsLog(Array.isArray(redemptions.data?.data) ? redemptions.data.data : []);
       } catch (error) {
         console.error('Error cargando StoreSettings desde MongoDB:', error);
       }
