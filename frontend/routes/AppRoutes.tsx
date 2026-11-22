@@ -3,6 +3,8 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Vistas Públicas
 import { HomeView } from '../views/HomeView';
+// Vista de error 404 integrada en el mismo escritorio Windows XP.
+import { NotFoundView } from '../views/NotFoundView';
 import { CatalogView } from '../views/CatalogView';
 import { ProductDetailView } from '../views/ProductDetailView';
 import { CartView } from '../views/CartView';
@@ -46,11 +48,19 @@ const SuperAdminOnlyGuard: React.FC<{ children: React.ReactNode }> = ({ children
 export const AppRoutes: React.FC = () => {
   const { pathname } = useLocation();
 
+  // HashRouter resuelve las rutas #/catalog, #/login, etc. Si el visitante
+  // escribió una ruta física desconocida (sin #), también mostrar la vista 404.
+  // No se modifica el comportamiento del backend /api ni vercel.json.
+  const browserPath = window.location.pathname.replace(/\/+$/, '') || '/';
+  const unknownBrowserPath = browserPath !== '/' && browserPath !== '/index.html';
+
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [pathname]);
+
+  if (unknownBrowserPath) return <NotFoundView />;
 
   return (
     <Routes>
@@ -244,8 +254,8 @@ export const AppRoutes: React.FC = () => {
         </Route>
       </Route>
 
-      {/* 4. CATCH-ALL: Redirigir a Home cualquier ruta no encontrada */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* 4. CATCH-ALL: Las rutas desconocidas muestran una ventana 404. */}
+      <Route path="*" element={<NotFoundView />} />
     </Routes>
   );
 };
