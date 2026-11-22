@@ -1,5 +1,5 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
+  
   "services": {
     "frontend": {
       "root": "frontend/",
@@ -11,8 +11,9 @@
     "backend": {
       "root": "backend/",
       "framework": "express",
-      "entrypoint": "src/server.ts",
-      "installCommand": "npm ci --legacy-peer-deps"
+      "entrypoint": "src/app.ts",
+      "installCommand": "npm ci --legacy-peer-deps",
+      "buildCommand": "npm run build"
     }
   },
   "rewrites": [
