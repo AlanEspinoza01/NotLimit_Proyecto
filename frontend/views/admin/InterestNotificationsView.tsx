@@ -149,6 +149,7 @@ const mapMongoAlertToFrontend = (doc: any): SystemAlert => {
     referencePhotos: evidencePhotos.length > 0 ? evidencePhotos : undefined,
     timeLimitText: doc.timeLimitText || '24 horas',
     dueHours: Number(doc.dueHours) || 24,
+    expiresAt: doc.expiresAt || undefined,
     status: doc.status === 'resolved' ? 'resolved' : 'active',
     resolvedAt: doc.resolvedAt || undefined,
     replyNote: doc.replyNote || undefined,

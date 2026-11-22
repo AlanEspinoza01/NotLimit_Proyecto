@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -80,6 +80,44 @@ export const NotificationAlertCard: React.FC<NotificationAlertCardProps> = ({
 
   const email = getAlertEmail(al);
   const productsList = getAlertProducts(al);
+
+  // Contador regresivo en tiempo real para Cobro Pendiente (POS)
+  const [countdownText, setCountdownText] = useState<string>('');
+
+  useEffect(() => {
+    if (!isCobroPendiente || isResolved) {
+      setCountdownText('');
+      return;
+    }
+
+    const targetMs = al.expiresAt
+      ? new Date(al.expiresAt).getTime()
+      : (() => {
+          const parsedCreated = Date.parse(al.createdAt);
+          if (Number.isNaN(parsedCreated)) return null;
+          return parsedCreated + (al.dueHours || 4) * 60 * 60 * 1000;
+        })();
+
+    if (!targetMs) return;
+
+    const updateTimer = () => {
+      const diff = targetMs - Date.now();
+      if (diff <= 0) {
+        setCountdownText('EXPIRADO (Actualiza para liberar stock)');
+        return;
+      }
+      const totalSec = Math.floor(diff / 1000);
+      const hrs = Math.floor(totalSec / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      setCountdownText(`${pad(hrs)}:${pad(mins)}:${pad(secs)} restantes`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [isCobroPendiente, isResolved, al.expiresAt, al.createdAt, al.dueHours]);
 
   return (
     <div
@@ -522,7 +560,7 @@ export const NotificationAlertCard: React.FC<NotificationAlertCardProps> = ({
             )}
 
           {/* Plazo / Expiración */}
-          {al.timeLimitText &&
+          {(countdownText || al.timeLimitText) &&
             al.category !== 'atencion_cliente' &&
             al.category !== 'producto_agotado' &&
             al.category !== 'devolucion' &&
@@ -531,7 +569,7 @@ export const NotificationAlertCard: React.FC<NotificationAlertCardProps> = ({
                 <span className="text-gray-500 font-bold block">Plazo / Expiración:</span>
                 <span className="font-mono font-bold text-red-700 flex items-center gap-1 mt-0.5">
                   <Clock className="w-3 h-3 text-red-600 shrink-0" />
-                  {al.timeLimitText}
+                  {countdownText || al.timeLimitText}
                 </span>
               </div>
             )}
