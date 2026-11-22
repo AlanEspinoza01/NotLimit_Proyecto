@@ -16,3 +16,11 @@ coverage/
 /files_list.txt
 
 /estructura-proyecto.txt
+
+# Archivos auxiliares del proyecto
+/files_list.txt
+
+# Exportaciones de código para revisión
+/backend_context.txt
+/frontend_context.txt
+/estructura-proyecto.txt
