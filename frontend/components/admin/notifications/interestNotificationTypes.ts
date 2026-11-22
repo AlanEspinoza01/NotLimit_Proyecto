@@ -96,6 +96,7 @@ export interface SystemAlert {
   products?: AlertProductItem[];
   timeLimitText?: string;
   dueHours?: number;
+  expiresAt?: string;
   createdAt: string;
   status: 'active' | 'resolved';
   resolvedAt?: string;

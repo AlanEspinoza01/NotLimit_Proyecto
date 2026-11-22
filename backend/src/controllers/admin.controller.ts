@@ -1,15 +1,14 @@
-
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { 
-  ProductModel, 
-  UserModel, 
-  OrderModel, 
+import {
+  ProductModel,
+  UserModel,
+  OrderModel,
   BranchModel,
   StoreSettingsModel,
   SupplierModel,
   ExpenseModel,
-  SystemAlertModel  
+  SystemAlertModel
 } from '../models';
 import { cloudinary } from '../config/cloudinary';
 import { ApiError } from '../utils/ApiError';
@@ -17,7 +16,7 @@ import { ApiError } from '../utils/ApiError';
 // Función auxiliar para normalizar productos (sincroniza title/name y sizeBreakdown/sizes/sizeStock)
 // - sizeBreakdown: arreglo de objetos [{ id, size, quantity, stock }]
 // - sizes: arreglo de strings ["M (Chile/EUR) - 38-40 (USA)"] para evitar [object Object] en la tabla
-const normalizeProductPayload = (rawData: any, validateForWrite = false) => {  
+const normalizeProductPayload = (rawData: any, validateForWrite = false) => {
   const data = { ...rawData };
 
   // 1. Sincronizar title y name
@@ -85,16 +84,16 @@ const normalizeProductPayload = (rawData: any, validateForWrite = false) => {
 };
 
 export const getDashboardMetrics = async (
-  req: Request, 
-  res: Response, 
+  req: Request,
+  res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     // 1. Contar productos (activos y agotados)
     const totalProducts = await ProductModel.countDocuments({ isHidden: false });
-    const outOfStockProducts = await ProductModel.countDocuments({ 
-      isHidden: false, 
-      'sizeBreakdown.quantity': { $not: { $gt: 0 } } 
+    const outOfStockProducts = await ProductModel.countDocuments({
+      isHidden: false,
+      'sizeBreakdown.quantity': { $not: { $gt: 0 } }
     });
 
     // 2. Contar usuarios por rol
@@ -105,12 +104,12 @@ export const getDashboardMetrics = async (
     // 3. Obtener ventas globales (Solo órdenes confirmadas)
     const salesData = await OrderModel.aggregate([
       { $match: { paymentStatus: 'CONFIRMED' } },
-      { 
-        $group: { 
-          _id: null, 
-          totalRevenue: { $sum: '$total' }, 
-          totalOrders: { $sum: 1 } 
-        } 
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$total' },
+          totalOrders: { $sum: 1 }
+        }
       }
     ]);
 
@@ -120,12 +119,12 @@ export const getDashboardMetrics = async (
     // 4. Ventas desglosadas por sucursal
     const salesByBranch = await OrderModel.aggregate([
       { $match: { paymentStatus: 'CONFIRMED' } },
-      { 
-        $group: { 
-          _id: '$branchId', 
-          revenue: { $sum: '$total' }, 
-          orders: { $sum: 1 } 
-        } 
+      {
+        $group: {
+          _id: '$branchId',
+          revenue: { $sum: '$total' },
+          orders: { $sum: 1 }
+        }
       }
     ]);
 
@@ -176,13 +175,13 @@ export const getDashboardMetrics = async (
 };
 
 export const getOrders = async (
-  req: Request, 
-  res: Response, 
+  req: Request,
+  res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     const orders = await OrderModel.find().sort({ createdAt: -1 });
-    
+
     res.status(200).json({
       success: true,
       data: orders
@@ -235,20 +234,20 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
   try {
     const id = String(req.params.id || '');
     if (!/^[a-f0-9]{24}$/i.test(id)) {
-      res.status(400).json({success: false, message: 'Identificador de orden inválido'});
+      res.status(400).json({ success: false, message: 'Identificador de orden inválido' });
       return;
     }
 
     const currentOrder = await OrderModel.findById(id);
     if (!currentOrder) {
-      res.status(404).json({success: false, message: 'Orden no encontrada'});
+      res.status(404).json({ success: false, message: 'Orden no encontrada' });
       return;
     }
 
     const body = req.body || {};
     const newStatus = String(body.fulfillmentStatus || body.status || '').trim();
     if (!newStatus || (body.status && body.fulfillmentStatus && body.status !== body.fulfillmentStatus)) {
-      res.status(400).json({success: false, message: 'Debes indicar un único estado válido para el pedido'});
+      res.status(400).json({ success: false, message: 'Debes indicar un único estado válido para el pedido' });
       return;
     }
 
@@ -259,7 +258,7 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
     const requestedPayment = body.paymentStatus;
     const auditNote = typeof body.auditNote === 'string' ? body.auditNote.trim() : '';
     if (auditNote.length > 1000) {
-      res.status(400).json({success: false, message: 'La observación es demasiado extensa'});
+      res.status(400).json({ success: false, message: 'La observación es demasiado extensa' });
       return;
     }
 
@@ -268,12 +267,12 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
     if (isPaymentAction) {
       // Una transacción de una pasarela no puede confirmarse/anularse desde el panel.
       if (!manual || currentPayment !== 'PENDING' || !['Pago Confirmando', 'Pago Anulado'].includes(newStatus)) {
-        res.status(403).json({success: false, message: 'El estado del pago se determina por su medio de pago; no se puede modificar desde este botón'});
+        res.status(403).json({ success: false, message: 'El estado del pago se determina por su medio de pago; no se puede modificar desde este botón' });
         return;
       }
       const nextPayment = newStatus === 'Pago Confirmando' ? 'CONFIRMED' : 'REJECTED';
       if (requestedPayment !== undefined && requestedPayment !== nextPayment) {
-        res.status(400).json({success: false, message: 'El estado de pago enviado no corresponde a la acción solicitada'});
+        res.status(400).json({ success: false, message: 'El estado de pago enviado no corresponde a la acción solicitada' });
         return;
       }
       updateFields.paymentStatus = nextPayment;
@@ -284,12 +283,12 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
       }
     } else {
       if (currentPayment !== 'CONFIRMED') {
-        res.status(409).json({success: false, message: 'No se puede avanzar el pedido mientras su pago no esté confirmado'});
+        res.status(409).json({ success: false, message: 'No se puede avanzar el pedido mientras su pago no esté confirmado' });
         return;
       }
       // Incluso un cliente que manipule la petición no puede cambiar datos de cobro.
       if (requestedPayment !== undefined && requestedPayment !== currentPayment) {
-        res.status(403).json({success: false, message: 'El pago no puede modificarse desde el seguimiento del pedido'});
+        res.status(403).json({ success: false, message: 'El pago no puede modificarse desde el seguimiento del pedido' });
         return;
       }
       const allowed = getNextOrderStatuses(previousStatus, String(currentOrder.deliveryType || ''));
@@ -299,7 +298,7 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
         allowed.push('Solicitud recibida');
       }
       if (!allowed.includes(newStatus)) {
-        res.status(409).json({success: false, message: `No se puede pasar de "${previousStatus}" a "${newStatus}". Actualiza la lista para comprobar el estado vigente.`});
+        res.status(409).json({ success: false, message: `No se puede pasar de "${previousStatus}" a "${newStatus}". Actualiza la lista para comprobar el estado vigente.` });
         return;
       }
       // Rechazar una devolución NO anula ni devuelve automáticamente el cobro.
@@ -311,17 +310,17 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
 
     if (body.trackingNumber !== undefined || body.shippingCourier !== undefined) {
       if (currentOrder.deliveryType !== 'envio' || newStatus !== 'En transito') {
-        res.status(400).json({success: false, message: 'Los datos de seguimiento solo pueden registrarse al enviar el pedido'});
+        res.status(400).json({ success: false, message: 'Los datos de seguimiento solo pueden registrarse al enviar el pedido' });
         return;
       }
       const code = String(body.trackingNumber || '').trim();
       if (code && !/^[A-Za-z0-9._-]{4,90}$/.test(code)) {
-        res.status(400).json({success: false, message: 'El código de seguimiento no tiene un formato válido'});
+        res.status(400).json({ success: false, message: 'El código de seguimiento no tiene un formato válido' });
         return;
       }
       const courier = String(body.shippingCourier || '').trim();
       if (courier && !['Starken', 'Blue Express', 'Paket'].includes(courier)) {
-        res.status(400).json({success: false, message: 'Servicio de transporte no reconocido'});
+        res.status(400).json({ success: false, message: 'Servicio de transporte no reconocido' });
         return;
       }
       if (code) updateFields['shippingDetails.trackingNumber'] = code;
@@ -331,23 +330,29 @@ export const updateOrderStatus = async (req: Request, res: Response, next: NextF
     // Condición de concurrencia: si otro administrador avanzó el pedido,
     // evitamos sobrescribir su estado o insertar un historial incorrecto.
     const updatedOrder = await OrderModel.findOneAndUpdate(
-      {_id: currentOrder._id, paymentStatus: currentOrder.paymentStatus,
-        status: currentOrder.status, fulfillmentStatus: currentOrder.fulfillmentStatus},
+      {
+        _id: currentOrder._id,
+        paymentStatus: currentOrder.paymentStatus,
+        status: currentOrder.status,
+        fulfillmentStatus: currentOrder.fulfillmentStatus
+      },
       {
         $set: updateFields,
-        $push: {statusAuditLog: {
-          status: newStatus,
-          timestamp: new Date().toISOString(),
-          note: [auditNote, `Cambio registrado por ${req.user?.email || 'administrador'}`].filter(Boolean).join(' · ')
-        }}
+        $push: {
+          statusAuditLog: {
+            status: newStatus,
+            timestamp: new Date().toISOString(),
+            note: [auditNote, `Cambio registrado por ${req.user?.email || 'administrador'}`].filter(Boolean).join(' · ')
+          }
+        }
       },
-      {returnDocument: 'after', runValidators: true}
+      { returnDocument: 'after', runValidators: true }
     );
     if (!updatedOrder) {
-      res.status(409).json({success: false, message: 'La orden cambió mientras la editabas. Actualiza la lista e inténtalo nuevamente.'});
+      res.status(409).json({ success: false, message: 'La orden cambió mientras la editabas. Actualiza la lista e inténtalo nuevamente.' });
       return;
     }
-    res.status(200).json({success: true, data: updatedOrder});
+    res.status(200).json({ success: true, data: updatedOrder });
   } catch (error) {
     console.error('Error en updateOrderStatus:', error);
     next(error);
@@ -360,11 +365,11 @@ export const deleteOrder = async (req: Request, res: Response, next: NextFunctio
     const { id } = req.params;
     const protectedOrder = await OrderModel.findById(id);
     if (protectedOrder?.paymentMethod === 'Webpay Plus') {
-      res.status(403).json({success:false,message:'No se puede eliminar el comprobante de una transacción Webpay.'});
+      res.status(403).json({ success: false, message: 'No se puede eliminar el comprobante de una transacción Webpay.' });
       return;
     }
     const deletedOrder = await OrderModel.findByIdAndDelete(id);
-    
+
     if (!deletedOrder) {
       res.status(404).json({ success: false, message: 'Orden no encontrada' });
       return;
@@ -460,7 +465,7 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
   try {
     const { id } = req.params;
     const deletedProduct = await ProductModel.findByIdAndDelete(id);
-    
+
     if (!deletedProduct) {
       res.status(404).json({ success: false, message: 'Producto no encontrado' });
       return;
@@ -477,9 +482,9 @@ export const deleteProduct = async (req: Request, res: Response, next: NextFunct
       await Promise.all(deletePromises);
     }
 
-    res.status(200).json({ 
-      success: true, 
-      message: 'Producto e imágenes de Cloudinary eliminados exitosamente' 
+    res.status(200).json({
+      success: true,
+      message: 'Producto e imágenes de Cloudinary eliminados exitosamente'
     });
   } catch (error) {
     console.error('Error eliminando producto:', error);
@@ -594,13 +599,13 @@ export const updateStoreSettings = async (req: Request, res: Response, next: Nex
   try {
     const rawData = { ...req.body };
 
-    const settingsPayload = typeof rawData.settings === 'string' 
-      ? JSON.parse(rawData.settings) 
+    const settingsPayload = typeof rawData.settings === 'string'
+      ? JSON.parse(rawData.settings)
       : rawData;
 
     // Solo el controlador de cupones puede cambiar el catálogo y sus contadores.
     if (Object.prototype.hasOwnProperty.call(settingsPayload, 'coupons')) {
-      res.status(400).json({success:false,message:'Gestiona cupones mediante /api/admin/coupons'});
+      res.status(400).json({ success: false, message: 'Gestiona cupones mediante /api/admin/coupons' });
       return;
     }
 
@@ -1230,7 +1235,64 @@ export const deleteCustomer = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+// Devuelve el stock a ProductModel cuando una venta POS pendiente se anula o expira
+const restoreOrderStock = async (items: any[]) => {
+  for (const item of items || []) {
+    let matchedProduct: any = null;
+    if (item.productId && /^[0-9a-fA-F]{24}$/.test(String(item.productId))) {
+      matchedProduct = await ProductModel.findById(item.productId);
+    }
+    if (!matchedProduct && item.name) {
+      const escapedName = String(item.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      matchedProduct = await ProductModel.findOne({
+        $or: [
+          { title: { $regex: new RegExp(`^${escapedName}$`, 'i') } },
+          { name: { $regex: new RegExp(`^${escapedName}$`, 'i') } }
+        ]
+      });
+    }
+    if (!matchedProduct) continue;
 
+    const qtyToRestore = Math.max(1, Number(item.quantity) || 1);
+    const targetSize = String(item.size || '').trim().toLowerCase();
+
+    ['sizeBreakdown', 'sizeStock'].forEach((arrayField) => {
+      if (Array.isArray(matchedProduct[arrayField]) && matchedProduct[arrayField].length > 0) {
+        const sizeEntry = matchedProduct[arrayField].find(
+          (s: any) =>
+            String(s.size || '').trim().toLowerCase() === targetSize ||
+            String(s.size || '').toLowerCase().startsWith(targetSize.split(' ')[0])
+        );
+        if (sizeEntry) {
+          if (typeof sizeEntry.stock === 'number') sizeEntry.stock += qtyToRestore;
+          if (typeof sizeEntry.quantity === 'number') sizeEntry.quantity += qtyToRestore;
+        }
+        matchedProduct.markModified(arrayField);
+      }
+    });
+
+    if (Array.isArray(matchedProduct.sizeBreakdown) && matchedProduct.sizeBreakdown.length > 0) {
+      matchedProduct.sizes = matchedProduct.sizeBreakdown.map(
+        (s: any) => `${s.size} (${Number(s.quantity ?? s.stock ?? 0)})`
+      );
+      const newTotal = matchedProduct.sizeBreakdown.reduce(
+        (acc: number, s: any) => acc + (Number(s.quantity ?? s.stock ?? 0) || 0),
+        0
+      );
+      matchedProduct.totalStock = newTotal;
+      matchedProduct.stock = newTotal;
+    } else {
+      matchedProduct.totalStock = (Number(matchedProduct.totalStock) || 0) + qtyToRestore;
+      matchedProduct.stock = (Number(matchedProduct.stock) || 0) + qtyToRestore;
+    }
+
+    if (typeof matchedProduct.soldUnits === 'number') {
+      matchedProduct.soldUnits = Math.max(0, matchedProduct.soldUnits - qtyToRestore);
+    }
+
+    await matchedProduct.save({ validateBeforeSave: false });
+  }
+};
 
 // ==========================================================================
 // CREAR NUEVA ORDEN / VENTA POS (Order.model.ts + Descuento de Stock + Puntos Cliente)
@@ -1251,9 +1313,10 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
     const shippingCost = Number(data.shippingCost ?? 0) || 0;
     const total = Number(data.total ?? subtotal + shippingCost) || 0;
 
-    // 1. Normalizar los ítems para OrderItemSchema
+    // 1. Normalizar los ítems para OrderItemSchema y SystemAlertModel (con fotos/descripción reales)
     const rawItems: any[] = Array.isArray(data.items) ? data.items : [];
     const normalizedItems: any[] = [];
+    const alertProducts: any[] = [];
 
     for (let i = 0; i < rawItems.length; i++) {
       const item = rawItems[i];
@@ -1277,13 +1340,52 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
         });
       }
 
+      const realImages: string[] =
+        Array.isArray((matchedProduct as any)?.images) && (matchedProduct as any).images.length > 0
+          ? (matchedProduct as any).images
+          : Array.isArray(item.images) && item.images.length > 0
+          ? item.images
+          : item.image
+          ? [item.image]
+          : [];
+
+      const realSku =
+        (matchedProduct as any)?.sku || item.sku || `NL-POS-${i + 1}`;
+      const realDescription =
+        (matchedProduct as any)?.description || item.description || '';
+      const realCategory = matchedProduct
+        ? [
+            (matchedProduct as any).category,
+            (matchedProduct as any).subcategory || (matchedProduct as any).subCategory
+          ]
+            .filter(Boolean)
+            .join(' / ')
+        : item.category || '';
+
       normalizedItems.push({
         productId: matchedProduct ? matchedProduct._id : item.productId || null,
-        sku: item.sku || (matchedProduct as any)?.sku || `NL-POS-${i + 1}`,
+        sku: realSku,
         name: itemName,
         size: itemSize,
         price: itemPrice,
         quantity: itemQuantity
+      });
+
+      alertProducts.push({
+        id: matchedProduct
+          ? String(matchedProduct._id)
+          : item.productId
+          ? String(item.productId)
+          : `it_${i + 1}`,
+        name: itemName,
+        quantity: itemQuantity,
+        size: itemSize,
+        price: itemPrice,
+        sku: realSku,
+        image: realImages[0] || '',
+        images: realImages,
+        description: realDescription,
+        category: realCategory
       });
 
       // 2. Descontar stock en ProductModel si el producto existe en el catálogo de MongoDB
@@ -1421,12 +1523,38 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
       await matchedUser.save({ validateBeforeSave: false });
     }
 
-    // 5. Si la orden quedó "Pendiente de Pago", crear alerta automática en system_alerts
+    // 5. Si la orden quedó "Pendiente de Pago" desde POS, crear alerta con fotos reales y fecha exacta de expiración
     if (!isConfirmed) {
+      const parseDeadlineToHours = (rawVal: unknown, fallbackText?: unknown): number => {
+        const num = Number(rawVal);
+        if (Number.isFinite(num) && num > 0) return num;
+        const text = String(rawVal || fallbackText || '').toLowerCase();
+        const minMatch = text.match(/(\d+(?:\.\d+)?)\s*min/);
+        if (minMatch) return Math.max(0.05, Number(minMatch[1]) / 60);
+        const hrMatch = text.match(/(\d+(?:\.\d+)?)\s*h/);
+        if (hrMatch) return Math.max(0.05, Number(hrMatch[1]));
+        const dayMatch = text.match(/(\d+(?:\.\d+)?)\s*d/);
+        if (dayMatch) return Math.max(1, Number(dayMatch[1]) * 24);
+        return 4;
+      };
+
+      const dueHours = parseDeadlineToHours(
+        data.deadlineHours ??
+          data.dueHours ??
+          data.paymentDeadlineHours ??
+          data.timeLimitHours ??
+          data.expirationHours ??
+          data.pendingPaymentLimitHours,
+        data.timeLimitText || data.paymentDeadline
+      );
+      const expiresAt = new Date(Date.now() + dueHours * 60 * 60 * 1000);
+      const timeLimitText =
+        data.timeLimitText || (dueHours === 1 ? '1 hora' : `${dueHours} horas`);
+
       await SystemAlertModel.create({
         category: 'cobro_pendiente',
         title: `COBRO PENDIENTE: ${data.customerName || 'Cliente NoLimits'} ($${total.toLocaleString('es-CL')})`,
-        description: `Cliente ${data.customerName || 'Cliente'} mantiene orden ${orderNumber} con pago pendiente tras reserva en vivo. Registrada por: ${data.registeredByAdmin || 'Administrador'}.`,
+        description: `Cliente ${data.customerName || 'Cliente'} mantiene orden ${orderNumber} con pago pendiente tras reserva POS. Registrada por: ${data.registeredByAdmin || 'Administrador'}.`,
         severity: 'critical',
         customerName: data.customerName || 'Cliente NoLimits',
         customerRut: data.customerRut || data.rut || 'Sin RUT',
@@ -1444,16 +1572,12 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
         shippingAddress: data.shippingDetails?.address || null,
         orderNumber,
         amount: total,
-        products: normalizedItems.map((it, idx) => ({
-          id: it.productId ? String(it.productId) : `it_${idx + 1}`,
-          name: it.name,
-          quantity: it.quantity,
-          size: it.size,
-          price: it.price,
-          sku: it.sku
-        })),
-        timeLimitText: `${data.deadlineHours || 4} horas`,
-        dueHours: Number(data.deadlineHours) || 4,
+        productName: alertProducts[0]?.name || '',
+        productLink: alertProducts[0]?.id ? `/product/${alertProducts[0].id}` : '',
+        products: alertProducts,
+        timeLimitText,
+        dueHours,
+        expiresAt,
         status: 'active',
         registeredByAdmin: data.registeredByAdmin || 'Super Admin',
         isAutomated: true
@@ -1475,52 +1599,115 @@ export const createOrder = async (req: Request, res: Response, next: NextFunctio
 // CONTROLADORES DE NOTIFICACIONES Y ALERTAS (SystemAlert.model.ts)
 // ==========================================================================
 
-// 1. Obtener todas las alertas del sistema (y sincronizar órdenes con Pendiente de Pago)
+// 1. Obtener todas las alertas del sistema (limpia Webpay, vence cobros POS y enriquece productos reales)
 export const getSystemAlerts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    // Asegurar que toda orden en estado PENDING tenga su alerta en system_alerts
-    const pendingOrders = await OrderModel.find({ paymentStatus: 'PENDING' });
-    for (const ord of pendingOrders) {
-      const exists = await SystemAlertModel.findOne({
-        orderNumber: ord.orderNumber,
-        category: 'cobro_pendiente'
+    const now = new Date();
+
+    // 1. Limpiar alertas de cobro_pendiente que provengan de Webpay / Tienda Web Pública
+    const webpayOrders = await OrderModel.find({
+      $or: [
+        { paymentMethod: /web\s*pay/i },
+        { registeredByAdmin: 'Tienda Web Pública' }
+      ]
+    }).select('orderNumber').lean();
+
+    const webpayOrderNumbers = webpayOrders.map((o) => o.orderNumber).filter(Boolean);
+    if (webpayOrderNumbers.length > 0) {
+      await SystemAlertModel.deleteMany({
+        category: 'cobro_pendiente',
+        orderNumber: { $in: webpayOrderNumbers }
       });
-      if (!exists) {
-        await SystemAlertModel.create({
-          category: 'cobro_pendiente',
-          title: `COBRO PENDIENTE: ${ord.customerName} ($${Number(ord.total || 0).toLocaleString('es-CL')})`,
-          description: `Cliente ${ord.customerName} mantiene orden ${ord.orderNumber} con pago pendiente tras reserva (${ord.registeredByAdmin || 'POS'}).`,
-          severity: 'critical',
-          customerName: ord.customerName,
-          customerRut: ord.customerRut || 'Sin RUT',
-          customerPhone: ord.customerPhone || '+56 9 0000 0000',
-          customerEmail: ord.customerEmail || ord.guestEmail || '',
-          branchId: ord.branchId || 'casa_matriz',
-          deliveryType: ord.deliveryType === 'envio' ? 'envio' : 'retiro',
-          deliveryMethodText:
-            ord.deliveryType === 'envio'
-              ? `Envío a Domicilio (${ord.shippingDetails?.courier || 'Starken'})`
-              : `Retiro en Sucursal (${ord.branchName || ord.branchId})`,
-          shippingAddress: ord.shippingDetails?.address || null,
-          orderNumber: ord.orderNumber,
-          amount: ord.total || 0,
-          products: (ord.items || []).map((it: any, idx: number) => ({
-            id: it.productId ? String(it.productId) : `it_${idx + 1}`,
-            name: it.name,
-            quantity: it.quantity || 1,
-            size: it.size || 'Única',
-            price: it.price || 0,
-            sku: it.sku || 'NL-SKU'
-          })),
-          timeLimitText: '4 horas',
-          dueHours: 4,
-          status: 'active',
-          isAutomated: true
-        });
+    }
+
+    // 2. Revisar cobros pendientes POS activos cuyo tiempo límite ya expiró
+    const activePendingAlerts = await SystemAlertModel.find({
+      category: 'cobro_pendiente',
+      status: 'active'
+    });
+
+    for (const alertDoc of activePendingAlerts) {
+      const hours = Number(alertDoc.dueHours) || 4;
+      const expirationDate = alertDoc.expiresAt
+        ? new Date(alertDoc.expiresAt)
+        : new Date(new Date(alertDoc.createdAt).getTime() + hours * 60 * 60 * 1000);
+
+      if (now.getTime() >= expirationDate.getTime()) {
+        if (alertDoc.orderNumber) {
+          const targetOrder = await OrderModel.findOne({ orderNumber: alertDoc.orderNumber });
+          if (targetOrder && targetOrder.paymentStatus === 'PENDING' && !/web\s*pay/i.test(targetOrder.paymentMethod)) {
+            await restoreOrderStock(targetOrder.items || []);
+            targetOrder.paymentStatus = 'REJECTED';
+            targetOrder.status = 'Pago Anulado';
+            targetOrder.fulfillmentStatus = 'Pago Anulado';
+            targetOrder.confirmedRevenue = 0;
+            targetOrder.cancellationReason = 'Tiempo límite expirado automáticamente (POS)';
+            targetOrder.cancelledAt = now.toISOString().replace('T', ' ').substring(0, 16);
+            targetOrder.statusAuditLog = [
+              ...(targetOrder.statusAuditLog || []),
+              {
+                status: 'Pago Anulado',
+                timestamp: now.toLocaleString('es-CL'),
+                note: 'Plazo límite de pago vencido. Orden anulada y stock liberado automáticamente.'
+              }
+            ];
+            await targetOrder.save({ validateBeforeSave: false });
+          }
+        }
+        // Eliminar la alerta vencida automáticamente
+        await SystemAlertModel.deleteOne({ _id: alertDoc._id });
       }
     }
 
-    const alerts = await SystemAlertModel.find().sort({ createdAt: -1 });
+    const alerts = await SystemAlertModel.find().sort({ createdAt: -1 }).lean();
+
+    // 3. Enriquecer productos de las alertas con su foto, SKU, descripción y categoría reales desde MongoDB
+    const productIdsToFetch = new Set<string>();
+    alerts.forEach((al: any) => {
+      (al.products || []).forEach((p: any) => {
+        if (p?.id && /^[0-9a-fA-F]{24}$/.test(String(p.id))) {
+          productIdsToFetch.add(String(p.id));
+        }
+      });
+    });
+
+    if (productIdsToFetch.size > 0) {
+      const dbProducts = await ProductModel.find({
+        _id: { $in: Array.from(productIdsToFetch) }
+      })
+        .select('sku images description category subcategory subCategory')
+        .lean();
+
+      const prodMap = new Map<string, any>(
+        dbProducts.map((dp: any) => [String(dp._id), dp])
+      );
+
+      alerts.forEach((al: any) => {
+        if (Array.isArray(al.products)) {
+          al.products = al.products.map((p: any) => {
+            const realProd = p?.id ? prodMap.get(String(p.id)) : null;
+            if (!realProd) return p;
+            const realImages = Array.isArray(realProd.images) ? realProd.images : [];
+            const realCategory = [
+              realProd.category,
+              realProd.subcategory || realProd.subCategory
+            ]
+              .filter(Boolean)
+              .join(' / ');
+            return {
+              ...p,
+              sku: realProd.sku || p.sku,
+              image: p.image || realImages[0] || '',
+              images:
+                Array.isArray(p.images) && p.images.length > 0 ? p.images : realImages,
+              description: p.description || realProd.description || '',
+              category: p.category || realCategory
+            };
+          });
+        }
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: alerts
@@ -1584,7 +1771,7 @@ export const updateSystemAlert = async (req: Request, res: Response, next: NextF
       if (alertBefore?.orderNumber) {
         const linkedOrder = await OrderModel.findOne({ orderNumber: alertBefore.orderNumber });
         if (linkedOrder?.paymentMethod === 'Webpay Plus') {
-          res.status(403).json({ success:false, message:'Las órdenes Webpay requieren autorización de Transbank' });
+          res.status(403).json({ success: false, message: 'Las órdenes Webpay requieren autorización de Transbank' });
           return;
         }
       }
@@ -1607,15 +1794,19 @@ export const updateSystemAlert = async (req: Request, res: Response, next: NextF
       const targetOrder = await OrderModel.findOne({ orderNumber: updatedAlert.orderNumber });
 
       if (targetOrder?.paymentMethod === 'Webpay Plus') {
-        res.status(403).json({success:false,message:'No se permite confirmar pagos Webpay desde notificaciones'});
+        res.status(403).json({ success: false, message: 'No se permite confirmar pagos Webpay desde notificaciones' });
         return;
       }
       if (targetOrder) {
+        const wasPending = targetOrder.paymentStatus === 'PENDING';
         targetOrder.status = newOrderStatus;
         targetOrder.fulfillmentStatus = newOrderStatus;
         targetOrder.paymentStatus = isConfirmed ? 'CONFIRMED' : 'REJECTED';
         targetOrder.confirmedRevenue = isConfirmed ? Number(targetOrder.total) || 0 : 0;
         if (!isConfirmed) {
+          if (wasPending) {
+            await restoreOrderStock(targetOrder.items || []);
+          }
           targetOrder.cancellationReason = 'Pago anulado desde Centro de Notificaciones (Cobro Pendiente)';
           targetOrder.cancelledAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
         }
@@ -1693,8 +1884,6 @@ export const deleteSystemAlert = async (req: Request, res: Response, next: NextF
     next(error);
   }
 };
-
-
 
 // ==========================================================================
 // CONTROLADOR PÚBLICO DE CHECKOUT (TIENDA CLIENTES E INVITADOS)

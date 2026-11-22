@@ -46,6 +46,7 @@ export interface ISystemAlert extends Document {
   referencePhotos?: string[];
   timeLimitText: string;
   dueHours: number;
+  expiresAt?: Date | null;
   status: 'active' | 'resolved' | 'dismissed';
   resolvedAt?: string;
   replyNote?: string;
@@ -116,6 +117,7 @@ const SystemAlertSchema = new Schema<ISystemAlert>(
     referencePhotos: { type: [String], default: [] },
     timeLimitText: { type: String, default: '24 horas' },
     dueHours: { type: Number, default: 24 },
+    expiresAt: { type: Date, default: null },
     status: {
       type: String,
       enum: ['active', 'resolved', 'dismissed'],
