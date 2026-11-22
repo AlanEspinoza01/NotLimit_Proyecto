@@ -24,6 +24,8 @@ const storage = new CloudinaryStorage({
       folderName = 'nolimits_returns';
     } else if (req.originalUrl?.includes('profile')) {
       folderName = 'nolimits_avatars';
+    } else if (req.originalUrl?.includes('custom-products')) {
+      folderName = 'nolimits_custom_products';
     }
 
     return {

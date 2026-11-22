@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getHealthStatus } from '../controllers/health.controller';
+import customProductRouter from './customProduct.routes';
 import authRouter from './auth.routes';
 import sessionPolicyRoutes from './sessionPolicyRoutes';
 import reviewRouter from './review.routes';
@@ -39,5 +40,7 @@ apiRouter.use('/admin', adminRouter);
 apiRouter.use('/reviews', reviewRouter);
 
 apiRouter.use('/returns', returnRouter);
+
+apiRouter.use('/custom-products', customProductRouter);
 
 export default apiRouter;
