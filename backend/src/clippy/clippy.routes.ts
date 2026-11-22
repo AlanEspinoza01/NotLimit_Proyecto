@@ -7,7 +7,7 @@ import { askGemini } from './clippy.gemini';
 import { createClippyGuide } from './clippy.conversation';
 import {
   type CatalogDocument, type ClippyPublicProduct,
-  matchCatalogProducts, matchStyleProducts, buildCatalogReply,
+  matchCatalogProducts, matchUpperAlternatives, matchStyleProducts, buildCatalogReply, buildUpperAlternativeReply,
 } from './clippy.catalog';
 import { isClippySocialResponse, isClippySocialMessage } from './clippy.empathy';
 
@@ -96,15 +96,24 @@ clippyPublicRouter.post('/ask', async (req: Request, res: Response) => {
     // Una consulta sobre una prenda concreta se filtra por clase + color + sección,
     // sin completar el resultado con artículos de otras categorías.
     let products: ClippyPublicProduct[] = [];
+    let showingUpperAlternatives = false;
     if (guide.recommendProducts) {
       const docs = await loadPublicCatalog();
       products = guide.productRequest
         ? matchCatalogProducts(docs, guide.productRequest)
         : matchStyleProducts(docs, guide.searchContext);
+      // La prioridad es el producto exacto; solo si no existe se proponen
+      // alternativas explícitas de ropa superior, conservando color y sección.
+      if (guide.productRequest && products.length === 0) {
+        products = matchUpperAlternatives(docs, guide.productRequest);
+        showingUpperAlternatives = products.length > 0;
+      }
     }
 
     let fallback = guide.productRequest
-      ? buildCatalogReply(guide.productRequest, products)
+      ? showingUpperAlternatives
+        ? buildUpperAlternativeReply(guide.productRequest, products)
+        : buildCatalogReply(guide.productRequest, products)
       : guide.answer;
     if (!guide.productRequest && guide.recommendProducts && products.length) {
       fallback += ` Te dejo ${products.length} opción(es) disponibles que podrían combinar con la idea; revisa los detalles de cada una.`;

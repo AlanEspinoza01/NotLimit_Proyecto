@@ -7,7 +7,7 @@
  */
 import type { ClippyTurn } from './clippy.conversation';
 
-export type ClippySocialKind = 'encouragement' | 'urgent' | 'celebration';
+export type ClippySocialKind = 'encouragement' | 'urgent' | 'celebration' | 'friendship' | 'hostility' | 'gratitude';
 export interface ClippySocialReply { kind: ClippySocialKind; answer: string }
 
 // Igualamos variantes del español (tildes, mayúsculas y espacios repetidos).
@@ -27,6 +27,26 @@ const INSECURITY = /\b(?:me siento|me veo)\s+(?:muy\s+)?(?:fe[oa]|horrible|inseg
 // Alegría y emociones positivas también merecen respuesta, sin forzar una venta.
 const HAPPINESS = /\b(?:estoy|ando|me siento|hoy estoy|hoy me siento)\s+(?:muy\s+|super\s+|re\s+)?(?:feliz|alegre|content[oa]|emocionad[oa]|animad[oa]|bien|genial)\b|\b(?:que alegria|estoy de buen humor|me fue muy bien)\b/;
 const NEUTRAL_FOLLOWUP = /^(?:no se|no se que hacer|no tengo ganas|no tengo animo|sigo igual|igual mal|gracias|muchas gracias|eso|pucha|uf|bueno|ya|si|no)[.!\s]*$/;
+
+// Conversaciones cotidianas de cercanía, sin presentar al asistente como persona real.
+const FRIENDSHIP = /\b(?:eres (?:mi|un|el) (?:amigo|pana)|somos amigos|puedes ser (?:mi|un) amigo|quieres ser mi amigo|eres mi compa|somos panas|eres mi pana)\b/;
+const HOSTILITY = /\b(?:te odio|te detesto|odio a clippy|clippy (?:te odio|eres horrible)|me caes mal|eres (?:un )?pesado)\b/;
+const GRATITUDE = /^(?:muchas\s+)?gracias(?:\s+(?:clippy|amigo|pana))?[!\s.]*$/;
+
+const FRIEND_ANSWERS = [
+  '¡Obvio, pana! 📎😎 Soy tu compa virtual de NoLimits: te ayudo a combinar outfits, encontrar colores y descubrir prendas que te gusten. ¡Aquí hay buena onda!',
+  '¡De todas maneras! 💛 Soy Clippy, tu pana digital y asesor de vestuario de NoLimits. Me encanta ayudarte a crear looks con tu propio estilo. 📎',
+  '¡Claro que sí, compa! 📎✨ Soy un asistente virtual, pero siempre voy a responderte con respeto y buena onda. ¡Armemos algo bacán cuando quieras!',
+] as const;
+const HOSTILE_ANSWERS = [
+  'Uy, amigo 😅. Dicen que el odio mata el alma y la envenena; no pienses eso, pana. Prefiero la buena onda y aquí sigo para ayudarte con respeto. 📎💛',
+  '¡Auch, me doblaste una esquinita! 📎😅 Dicen que el odio mata el alma y la envenena. Mejor quedémonos con la buena onda, amigo. Si algo no resultó, intentaré hacerlo mejor. 💛',
+  'Pucha, amigo, ojalá no nos quedemos con esa mala onda. 💛 El odio mata el alma y la envenena, dicen por ahí. Yo sigo aquí con respeto para echarte una mano. 📎',
+] as const;
+const THANKS_ANSWERS = [
+  '¡De nada, pana! 📎💛 Me alegra haberte ayudado. ¡Que tengas un día bacán!',
+  '¡Con gusto! 😎✨ Aquí está tu Clippy de confianza para los looks y las dudas de la tienda.',
+] as const;
 
 // No se utiliza para historiales médicos ni para deducir diagnósticos:
 // únicamente impide repetir un consejo que acaba de darse.
@@ -70,14 +90,16 @@ export const isPersonalDistress = (text: string): boolean => {
 };
 
 // No compartimos emociones positivas ni negativas de turnos previos con Gemini.
-export const isClippySocialMessage = (text: string): boolean =>
-  isPersonalDistress(text) || HAPPINESS.test(normalize(text));
+export const isClippySocialMessage = (text: string): boolean => {
+  const t = normalize(text);
+  return isPersonalDistress(text) || HAPPINESS.test(t) || FRIENDSHIP.test(t) || HOSTILITY.test(t) || GRATITUDE.test(t);
+};
 
 // Excluimos también nuestras frases de apoyo del contexto que podría ir a Gemini.
 // Así ni el malestar del visitante ni la respuesta local forman parte del prompt.
 const SOCIAL_ANSWERS: readonly string[] = [
   ...SAD_ANSWERS, ...STRESS_ANSWERS, ...INSECURITY_ANSWERS,
-  ...FOLLOWUP_ANSWERS, ...HAPPY_ANSWERS, URGENT_ANSWER,
+  ...FOLLOWUP_ANSWERS, ...HAPPY_ANSWERS, ...FRIEND_ANSWERS, ...HOSTILE_ANSWERS, ...THANKS_ANSWERS, URGENT_ANSWER,
 ];
 export const isClippySocialResponse = (text: string): boolean => SOCIAL_ANSWERS.includes(text);
 
@@ -101,6 +123,15 @@ export const getClippySocialReply = (question: string, history: ClippyTurn[]): C
 
   if (IMMEDIATE_RISK.test(current) || (IMMEDIATE_RISK.test(previous) && NEUTRAL_FOLLOWUP.test(current))) {
     return { kind: 'urgent', answer: URGENT_ANSWER };
+  }
+  if (HOSTILITY.test(current)) {
+    return { kind: 'hostility', answer: chooseDifferent(HOSTILE_ANSWERS, history) };
+  }
+  if (FRIENDSHIP.test(current)) {
+    return { kind: 'friendship', answer: chooseDifferent(FRIEND_ANSWERS, history) };
+  }
+  if (GRATITUDE.test(current) && !isPersonalDistress(previous)) {
+    return { kind: 'gratitude', answer: chooseDifferent(THANKS_ANSWERS, history) };
   }
   if (INSECURITY.test(current)) {
     return { kind: 'encouragement', answer: chooseDifferent(INSECURITY_ANSWERS, history) };

@@ -201,6 +201,30 @@ export const matchCatalogProducts = (products: CatalogDocument[], request: Clipp
   }).slice(0, 4).map(publicProduct);
 };
 
+/**
+ * Si no hay coincidencia exacta, admite alternativas SOLO de la familia
+ * ropa superior (camisa, polera/camiseta y blusa), sin mezclar colores.
+ * Las alternativas nunca se etiquetan como si fueran la prenda exacta.
+ */
+export const matchUpperAlternatives = (
+  products: CatalogDocument[], request: ClippyProductRequest,
+): ClippyPublicProduct[] => {
+  const family: ClothingType[] = ['camisa', 'polera', 'blusa'];
+  if (!request.type || !family.includes(request.type)) return [];
+  return products.filter((p) => {
+    if (!isPublicAvailable(p)) return false;
+    const actual = actualType(p);
+    if (!actual || !family.includes(actual) || actual === request.type) return false;
+    if (request.section && normalizeCatalogText(String(p.section || '')) !== normalizeCatalogText(request.section)) return false;
+    if (request.colors.length && !request.colors.some((color) => productColors(p).includes(color))) return false;
+    return true;
+  }).slice(0, 3).map(publicProduct);
+};
+
+/** Diferencia las alternativas de la prenda originalmente solicitada. */
+export const buildUpperAlternativeReply = (request: ClippyProductRequest, matches: ClippyPublicProduct[]): string =>
+  `¡Pana, ya entiendo lo que buscas! 📎 No encontré ${request.label} con stock entre los productos revisados, pero sí estas ${matches.length} alternativa(s) de ropa superior que respetan ${request.colors.length ? `el color ${request.colors.join(' o ')}` : 'tu búsqueda'}. Ojo: son prendas similares, no exactamente el modelo que pediste. Mira las fichas por si alguna te tinca. 💛`;
+
 /** Respuestas basadas únicamente en el resultado verificado de la BD. */
 export const buildCatalogReply = (request: ClippyProductRequest, matches: ClippyPublicProduct[]): string => {
   if (matches.length) {

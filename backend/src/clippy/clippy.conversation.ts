@@ -78,6 +78,19 @@ export const createClippyGuide = (question: string, history: ClippyTurn[]): Clip
       recommendProducts: false, styleConsultation: false, socialKind: social.kind,
     };
   }
+  // Responde con tacto ante reclamos sobre stock: no ignores la molestia
+  // ni ofrezcas productos sin conocer qué alternativa desea el visitante.
+  const stockComplaint = /\b(?:agotad[oa]+s?|sin stock|no hay stock|no queda[n]?|no (?:esta|estan) disponibles?)\b/.test(current)
+    && /\b(?:pero|ese|esa|este|esta|producto|prenda|la ficha|me aparece|sale|figura|esta|estan)\b/.test(current)
+    && !/\b(?:tienes?|tienen|hay|busco|buscando|muestrame|quiero|necesito|ofrecen)\b/.test(current);
+  if (stockComplaint) {
+    return {
+      answer: '¡Uy, qué lata que la prenda aparezca agotada! 😕📎 Gracias por avisarme. Si la ficha dice «Agotado», prefiero no prometerte stock ni reposición. Podemos buscar otra prenda o color que sí esté disponible; dime cuál te interesa. 💛',
+      suggestions: ['Buscar otra prenda', '¿Cómo consulto disponibilidad?'],
+      searchContext: '', recommendProducts: false, styleConsultation: false,
+    };
+  }
+
   // Una solicitud de producto concreto siempre tiene prioridad sobre estilo,
   // ocasión y preguntas anteriores. «Camisa blanca» no puede convertirse en «cita».
   // Solo usamos la pregunta inmediatamente anterior para «¿Y en blanco?».
@@ -154,7 +167,11 @@ export const createClippyGuide = (question: string, history: ClippyTurn[]): Clip
     if (/\b(stock|disponible|disponibilidad|agotado)\b/.test(current)) {
       return { answer: '¡Veamos! 👀 El stock publicado aparece en cada ficha de producto y puede cambiar. Si buscas una prenda agotada o que no aparece, pregunta directamente a NoLimits si tienen alternativa o reposición.', suggestions: [], searchContext, recommendProducts: false, styleConsultation: false };
     }
-    return { answer: '¡Buena pregunta! 📎 Puedo ayudarte con looks, colores, tallas y compras. Para detalles oficiales de una política o un pedido, revisa la información publicada por NoLimits o consulta a la tienda. ¿Qué te gustaría saber?', suggestions: ['Quiero un outfit', '¿Cómo elijo mi talla?'], searchContext, recommendProducts: false, styleConsultation: false };
+    return {
+      answer: '¡Aquí estoy, pana! 📎💛 Quiero entender bien tu pregunta para ayudarte de verdad. Puedo conversar de estilos, colores, tallas y prendas de NoLimits. ¿Me la cuentas con un poquito más de detalle?',
+      suggestions: ['Quiero un outfit', 'Buscar una prenda', '¿Cómo elijo mi talla?'],
+      searchContext, recommendProducts: false, styleConsultation: false,
+    };
   }
 
   // Primera etapa: el asistente pregunta por el estilo en vez de responder "sin stock".
