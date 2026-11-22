@@ -7,6 +7,7 @@ import reviewRouter from './review.routes';
 import adminRouter from './admin.routes';
 import stockAlertRouter from './stockAlert.routes';
 import authenticateUser from '../middleware/authenticateUser';
+import supportRouter from './support.routes';
 import webpayRouter from './webpay.routes';
 import returnRouter from './return.routes';
 import {
@@ -45,5 +46,7 @@ apiRouter.use('/returns', returnRouter);
 apiRouter.use('/custom-products', customProductRouter);
 
 apiRouter.use('/stock-alerts', stockAlertRouter);
+
+apiRouter.use('/support', supportRouter);
 
 export default apiRouter;

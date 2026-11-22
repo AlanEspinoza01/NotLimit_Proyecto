@@ -510,13 +510,13 @@ export const NotificationAlertCard: React.FC<NotificationAlertCardProps> = ({
           )}
 
           {/* Monto Asociado: Oculto en Atención al Cliente y en Solicitud de Productos Personalizado */}
-          {al.amount &&
+          {(al.amount ?? 0) > 0 &&
             al.category !== 'atencion_cliente' &&
             al.category !== 'producto_personalizado' && (
               <div>
                 <span className="text-gray-500 font-bold block">Monto Asociado:</span>
                 <span className="font-mono font-black text-rose-800 mt-0.5 block">
-                  ${al.amount.toLocaleString('es-CL')} CLP
+                  ${(al.amount ?? 0).toLocaleString('es-CL')} CLP
                 </span>
               </div>
             )}
