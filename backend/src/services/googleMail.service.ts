@@ -33,7 +33,8 @@ export const buildWelcomeMail = (firstName: string, to: string, from: string) =>
   const cleanName = escapeHtml(firstName.trim().slice(0, 90) || 'Cliente');
   // El botón de bienvenida siempre dirige a la tienda pública oficial de NoLimits.
   // URL fija, sin parámetros recibidos del cliente ni redirecciones a otros dominios.
-  const safeUrl = 'https://notlimit-proyecto.vercel.app';
+  // Dominio oficial de NoLimits publicado en Vercel.
+  const safeUrl = 'https://notlimitproyecto.vercel.app';
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body style="margin:0;padding:24px;background:#f1f5f9;font-family:Tahoma,Arial,sans-serif;color:#17335b">
   <div style="max-width:520px;margin:auto;background:#fff;border:2px solid #0055ea">
     <div style="background:#1768e6;color:white;padding:12px 16px;font-weight:bold">🌸 Bienvenido a NoLimits</div>
