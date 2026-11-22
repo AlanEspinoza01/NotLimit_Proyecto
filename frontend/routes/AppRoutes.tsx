@@ -32,6 +32,7 @@ import { ProductStockSummaryView } from '../views/admin/ProductStockSummaryView'
 import { InterestNotificationsView } from '../views/admin/InterestNotificationsView';
 import { PurchaseOrdersManagementView } from '../views/admin/PurchaseOrdersManagementView';
 import { AdminLayout } from '../views/admin/AdminLayout';
+import { ClippyAdminView } from '../clippy/ClippyAdminView';
 
 // Guard para redirigir a los administradores de sucursal lejos de las vistas de super admin
 const SuperAdminOnlyGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -104,6 +105,12 @@ export const AppRoutes: React.FC = () => {
           <Route path="/admin/resumen-stock" element={<ProductStockSummaryView />} />
           <Route path="/admin/stock" element={<ProductStockSummaryView />} />
           <Route path="/admin/top10" element={<Top10AnalyticsView />} />
+
+          {/* Configuración aislada del asistente: acceso SOLO para Super Admin. */}
+          <Route
+            path="/admin/clippy"
+            element={<SuperAdminOnlyGuard><ClippyAdminView /></SuperAdminOnlyGuard>}
+          />
 
           {/* Módulos exclusivos de Super Admin (restringidos para Admin de Sucursal) */}
           <Route

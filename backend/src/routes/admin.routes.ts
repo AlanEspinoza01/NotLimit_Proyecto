@@ -45,6 +45,7 @@ import {getAdminCouponCatalog,getAdminCouponHistory,createAdminCoupon,updateAdmi
 import authorizeRoles from '../middleware/authorizeRoles';
 import { uploadMiddleware } from '../config/cloudinary';
 import { getAdminOrderReceipt } from '../controllers/receipt.controller';
+import { clippyAdminRouter } from '../clippy/clippy.routes';
 
 const adminRouter = Router();
 
@@ -52,6 +53,9 @@ const adminRouter = Router();
 adminRouter.use(authenticateUser, authorizeRoles('super_admin'));
 // Protege operaciones con cookie frente a llamadas desde orígenes ajenos.
 adminRouter.use((req,res,next)=>['GET','HEAD','OPTIONS'].includes(req.method)?next():validateRequestOrigin(req,res,next));
+// Configuración de Clippy protegida por la misma autenticación, rol y defensa de origen de Admin.
+adminRouter.use('/clippy', clippyAdminRouter);
+
 adminRouter.get('/coupons',getAdminCouponCatalog);
 adminRouter.get('/coupons/redemptions',getAdminCouponHistory);
 adminRouter.post('/coupons',createAdminCoupon);

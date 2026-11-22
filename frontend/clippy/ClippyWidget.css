@@ -1,0 +1,46 @@
+/* Clippy: capa independiente con estética Windows XP, sin alterar estilos globales. */
+.nl-clippy-layer{position:fixed;inset:0;z-index:70;pointer-events:none;font:12px Tahoma,Verdana,sans-serif;color:#102341}
+.nl-clippy-layer button,.nl-clippy-layer a{cursor:pointer}
+.nl-clippy-character{position:fixed;width:110px;z-index:2;pointer-events:auto;touch-action:none;user-select:none}
+.nl-clippy-character-button{display:block;position:relative;width:110px;height:120px;background:transparent;border:0;padding:0;cursor:grab;touch-action:none}
+.nl-clippy-character-button:active{cursor:grabbing}
+.nl-clippy-character-button img{height:115px;width:110px;object-fit:contain;pointer-events:none}
+.nl-clippy-static{display:flex;align-items:center;justify-content:center;width:100px;height:95px;background:#fdf8cb;border:2px solid #4264ac;border-radius:40%;font-size:62px}
+.nl-clippy-hide{position:absolute;right:1px;top:2px;display:grid;place-items:center;width:22px;height:22px;background:#ece9d8;border:1px solid #7c9abf;box-shadow:1px 1px 0 #fff}
+.nl-clippy-tooltip{position:absolute;bottom:98%;left:-85px;width:205px;padding:8px 10px;background:#fff9d1;border:1px solid #454545;border-radius:10px;box-shadow:2px 3px 2px #0003;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s}
+.nl-clippy-character-button:hover .nl-clippy-tooltip,.nl-clippy-character-button:focus-visible .nl-clippy-tooltip{opacity:1;visibility:visible}
+.nl-clippy-restore{position:fixed;bottom:63px;right:12px;border:2px outset #f7fcff;background:#fff4b9;padding:7px 11px;pointer-events:auto;border-radius:6px;font-weight:bold;color:#153779}
+.nl-clippy-panel{position:fixed;display:flex;flex-direction:column;pointer-events:auto;background:#ece9d8;border:2px solid #063e98;box-shadow:0 9px 30px #06163866;border-radius:5px;overflow:hidden;max-width:calc(100vw - 16px)}
+.nl-clippy-titlebar{height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 9px;background:linear-gradient(#61a4ff,#1360d1 52%,#07339d);color:white}
+.nl-clippy-titlebar strong{display:flex;align-items:center;gap:7px;font-size:12px}
+.nl-clippy-titlebar button{background:#cb281d;border:1px solid white;color:white;border-radius:3px;padding:3px;display:flex;align-items:center}
+.nl-clippy-chat{flex:1;min-height:70px;overflow-y:auto;overscroll-behavior:contain;padding:10px 8px;background:#fdfdfd;display:flex;flex-direction:column;gap:9px}
+.nl-clippy-bubble{max-width:92%;border:1px solid #a6b6cd;border-radius:9px;padding:7px 9px;white-space:pre-wrap;overflow-wrap:anywhere;flex-shrink:0}
+.nl-clippy-bubble p{margin:4px 0;line-height:1.45}
+.nl-clippy-who{font-size:10px;font-weight:bold;color:#1456aa}
+.nl-clippy-bot{align-self:flex-start;background:#eff6ff}
+.nl-clippy-me{align-self:flex-end;background:#eaffde;border-color:#98c3a8}
+.nl-clippy-thinking{margin:2px 4px;font-style:italic;color:#516680}
+.nl-clippy-products{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+.nl-clippy-product{display:flex;align-items:center;gap:7px;text-decoration:none;background:#fff;border:1px solid #90b1d3;padding:4px;color:#0d408d;border-radius:5px}
+.nl-clippy-product img{width:40px;height:45px;object-fit:cover;border:1px solid #ddd}
+.nl-clippy-product span{display:flex;flex-direction:column;min-width:0}
+.nl-clippy-product b{font-size:10px}
+.nl-clippy-product small{font-size:10px;color:#1a4e77}
+.nl-clippy-contact{display:block;margin-top:7px;color:#0057ac;text-decoration:underline;font-weight:bold}
+.nl-clippy-faqs{max-height:82px;display:flex;gap:4px;overflow-x:auto;padding:6px;background:#f1f5ff;border-top:1px solid #a4b6cf}
+.nl-clippy-faqs button{flex:none;max-width:180px;padding:6px 7px;border:1px solid #8ba9cd;border-radius:7px;background:#fff;color:#074587;font:11px Tahoma;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nl-clippy-faqs button:disabled{opacity:.6;cursor:not-allowed}
+.nl-clippy-form{display:flex;gap:5px;padding:7px;background:#ece9d8;border-top:1px solid #9eb9d0}
+.nl-clippy-form input{flex:1;min-width:0;padding:8px;border:1px solid #7394b8;background:white;font:12px Tahoma;border-radius:2px;color:#102341}
+.nl-clippy-form button{border:1px solid #3263bb;background:#d8e9ff;color:#06438e;border-radius:3px;min-width:34px;display:grid;place-items:center}
+.nl-clippy-form button:disabled{opacity:.5;cursor:not-allowed}
+.nl-clippy-footer{padding:4px 8px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:9px;background:#f5f5e8;color:#52667e;text-align:center}
+@media(max-width:520px){.nl-clippy-character,.nl-clippy-character-button{width:88px}.nl-clippy-character-button{height:95px}.nl-clippy-character-button img{width:88px;height:94px}.nl-clippy-tooltip{left:-110px}.nl-clippy-panel{box-shadow:0 4px 20px #0007}}
+
+
+/* Opciones conversacionales de Clippy (generadas por el backend; sin tocar estilos globales). */
+.nl-clippy-suggestions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.nl-clippy-suggestions button{border:1px solid #7fa5d8;background:linear-gradient(#fff,#d9e9ff);border-radius:12px;color:#12447c;padding:5px 8px;font:11px Tahoma,Verdana,sans-serif;text-align:left;max-width:100%}
+.nl-clippy-suggestions button:hover:not(:disabled){border-color:#2468ce;background:#c7e0ff}
+.nl-clippy-suggestions button:disabled{opacity:.5;cursor:wait}

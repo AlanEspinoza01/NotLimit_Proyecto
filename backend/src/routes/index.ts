@@ -10,6 +10,7 @@ import authenticateUser from '../middleware/authenticateUser';
 import supportRouter from './support.routes';
 import webpayRouter from './webpay.routes';
 import returnRouter from './return.routes';
+import { clippyPublicRouter } from '../clippy/clippy.routes';
 import {
  getProducts,
   getBranches,
@@ -27,6 +28,9 @@ apiRouter.get('/branches', getBranches);
 apiRouter.get('/store-settings', getStoreSettings);
 // Legacy checkout disabled: it confirmed unpaid transactions. Use Webpay routes.
 apiRouter.get('/orders/my-orders', authenticateUser, getMyOrders);
+
+// Clippy público solo ve preguntas guiadas y un catálogo filtrado de productos.
+apiRouter.use('/clippy', clippyPublicRouter);
 
 apiRouter.use('/payments', webpayRouter);
 

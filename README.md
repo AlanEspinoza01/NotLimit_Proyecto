@@ -2,7 +2,7 @@
 
 > **Proyecto:** No Limits Cyber-Gothic Apparel OS · **Repositorio:** `NotLimit_Proyecto`  
 > **Documento para:** integrantes del equipo de desarrollo · **Última revisión del código suministrado:** 22 de noviembre de 2026  
-> **Estado:** proyecto en desarrollo; integración y publicación en Vercel por validar.
+> **Estado:** proyecto en desarrollo; frontend y backend publicados en Vercel y API/catálogo/Google validados manualmente el 22-11-2026. Otros flujos requieren pruebas funcionales y de seguridad.
 
 Este es el documento principal de referencia para instalar, entender, extender y mantener la aplicación. Está basado en los archivos reales de frontend y backend proporcionados por el equipo. Las advertencias sobre seguridad y producción describen puntos específicos detectados en el código, no funcionalidades hipotéticas.
 
@@ -29,19 +29,20 @@ Este es el documento principal de referencia para instalar, entender, extender y
 17. [Clientes, perfiles, direcciones, favoritos y reseñas](#clientes-perfiles-direcciones-favoritos-y-reseñas)
 18. [Devoluciones, incidencias y notificaciones](#devoluciones-incidencias-y-notificaciones)
 19. [Editor de página, configuración y contenido](#editor-de-página-configuración-y-contenido)
-20. [Cloudinary y ciclo de vida de medios](#cloudinary-y-ciclo-de-vida-de-medios)
-21. [Gmail API, OAuth y correos de bienvenida](#gmail-api-oauth-y-correos-de-bienvenida)
-22. [Seguridad y privacidad: controles y pendientes](#seguridad-y-privacidad-controles-y-pendientes)
-23. [Despliegue en Vercel: estado y verificación](#despliegue-en-vercel-estado-y-verificación)
-24. [Pruebas funcionales y criterios de aceptación](#pruebas-funcionales-y-criterios-de-aceptación)
-25. [Diagnóstico de errores frecuentes](#diagnóstico-de-errores-frecuentes)
-26. [Guía de colaboración, ramas y commits](#guía-de-colaboración-ramas-y-commits)
-27. [Limitaciones conocidas y prioridades de mantenimiento](#limitaciones-conocidas-y-prioridades-de-mantenimiento)
-28. [Anexo A: inventario de endpoints del backend](#anexo-a-inventario-de-endpoints-del-backend)
-29. [Anexo B: modelos y colecciones MongoDB](#anexo-b-modelos-y-colecciones-mongodb)
-30. [Anexo C: scripts y comandos de mantenimiento](#anexo-c-scripts-y-comandos-de-mantenimiento)
-31. [Anexo D: guía rápida por archivo y dominio](#anexo-d-guía-rápida-por-archivo-y-dominio)
-32. [Glosario y fuentes del repositorio](#glosario-y-fuentes-del-repositorio)
+20. [Clippy IA: asistente animado, asesor de vestuario y gestión segura](#clippy-ia-asistente-animado-asesor-de-vestuario-y-gestión-segura)
+21. [Cloudinary y ciclo de vida de medios](#cloudinary-y-ciclo-de-vida-de-medios)
+22. [Gmail API, OAuth y correos de bienvenida](#gmail-api-oauth-y-correos-de-bienvenida)
+23. [Seguridad y privacidad: controles y pendientes](#seguridad-y-privacidad-controles-y-pendientes)
+24. [Despliegue en Vercel: estado y verificación](#despliegue-en-vercel-estado-y-verificación)
+25. [Pruebas funcionales y criterios de aceptación](#pruebas-funcionales-y-criterios-de-aceptación)
+26. [Diagnóstico de errores frecuentes](#diagnóstico-de-errores-frecuentes)
+27. [Guía de colaboración, ramas y commits](#guía-de-colaboración-ramas-y-commits)
+28. [Limitaciones conocidas y prioridades de mantenimiento](#limitaciones-conocidas-y-prioridades-de-mantenimiento)
+29. [Anexo A: inventario de endpoints del backend](#anexo-a-inventario-de-endpoints-del-backend)
+30. [Anexo B: modelos y colecciones MongoDB](#anexo-b-modelos-y-colecciones-mongodb)
+31. [Anexo C: scripts y comandos de mantenimiento](#anexo-c-scripts-y-comandos-de-mantenimiento)
+32. [Anexo D: guía rápida por archivo y dominio](#anexo-d-guía-rápida-por-archivo-y-dominio)
+33. [Glosario y fuentes del repositorio](#glosario-y-fuentes-del-repositorio)
 
 ---
 
@@ -496,6 +497,58 @@ Una vista de previsualización no necesariamente constituye una publicación. Al
 
 ---
 
+## Clippy IA: asistente animado, asesor de vestuario y gestión segura
+
+> 📎 **Documentación técnica ampliada de Clippy:** [Ver README del módulo, ejemplos de API, archivos y pruebas](docs/clippy/README.md). Incluye capturas de la interfaz y diagramas Mermaid. **La documentación completa está en `docs/clippy/README.md`; este capítulo es la guía rápida.**
+
+![Conversación con Clippy en la tienda](docs/clippy/assets/clippy-chat.png)
+
+Clippy es el asistente animado de NoLimits, integrado en el escritorio de la tienda con estética Windows XP. Permite responder preguntas frecuentes, acompañar conversaciones sobre ocasión/estilo/paleta y recomendar artículos **reales y visibles** del catálogo. Si no encuentra una prenda apropiada, orienta al cliente para consultar directamente con NoLimits. El widget puede arrastrarse, ocultarse y restaurarse; sus GIF están referenciados en `frontend/clippy/clippy.animations.ts`.
+
+### Flujo de servicio y actores
+
+```mermaid
+flowchart LR
+    VIS[Visitante] --> W[ClippyWidget React]
+    W -->|/api/clippy/config y /ask| EX[Express]
+    EX --> SET[(clippy_settings)]
+    EX --> USG[(clippy_usage)]
+    EX --> CAT[(products públicas)]
+    EX -->|Solo si habilitado y disponible| AI[Gemini API]
+    SA[Super Admin] --> PANEL[CLIPPY_CONTROL.EXE]
+    PANEL -->|/api/admin/clippy/* protegido| EX
+```
+
+| Característica | Archivo o mecanismo | Comportamiento relevante |
+|---|---|---|
+| Widget y conversación | `frontend/clippy/ClippyWidget.tsx` | Preguntas libres, FAQ, botones sugeridos y tarjetas de productos |
+| Animaciones y diseño | `clippy.animations.ts` + `ClippyWidget.css` | GIF, arrastre, posición persistida y reducción de movimiento |
+| Panel del Super Admin | `ClippyAdminView.tsx` + `/#/admin/clippy` | Estado, saludo, personalidad, FAQ, WhatsApp y límites |
+| Backend público | `backend/src/clippy/clippy.routes.ts` | `GET /api/clippy/config` y `POST /api/clippy/ask` |
+| Backend protegido | `clippyAdminRouter` | `GET/PUT /api/admin/clippy/settings` y `GET /api/admin/clippy/usage` |
+| Motor sin IA | `clippy.conversation.ts` | Guía por ocasión → estilo → paleta; evita respuestas secas |
+| Gemini | `clippy.gemini.ts` | Usa `GEMINI_API_KEY` **solo** desde Express; fallback al modo guiado |
+| Catálogo | `ProductModel` | Máximo cuatro productos visibles y con stock del subconjunto consultado |
+| Seguridad | `clippy.security.ts` | Cookies anónimas firmadas, cuotas de uso y validación de consultas |
+
+**Cómo se activa:** colocar `GEMINI_API_KEY` en el entorno del backend, opcionalmente `GEMINI_MODEL=gemini-2.5-flash`, y habilitar **Activar asesoría con Gemini** desde `CLIPPY_CONTROL.EXE` (Super Admin). No es necesario configurar `VITE_API_URL` ni exponer claves al frontend.
+
+**Interfaz simplificada:** la última modificación quitó la casilla de consentimiento del chat. Cuando el administrador habilita la IA, las preguntas libres la utilizan automáticamente dentro de la cuota; las FAQ siguen siendo deterministas. El aviso y tratamiento de datos enviados a Google deben figurar en la documentación de privacidad publicada por la tienda y revisarse conforme a las obligaciones aplicables; eliminar el checkbox no acredita por sí solo una base legal.
+
+**Límites por defecto:** 5 consultas por minuto y 25 por día/visitante, con 200 intentos globales de Gemini al día. Los valores son modificables desde el panel dentro de rangos validados por Express. Las preguntas frecuentes y los ajustes se guardan en `clippy_settings`; los contadores temporales, en `clippy_usage` (TTL). El módulo no guarda conversaciones en MongoDB.
+
+### Pruebas rápidas del módulo
+
+1. Abrir una página pública y comprobar que Clippy se muestra y que `/api/clippy/config` devuelve JSON.
+2. Pulsar una FAQ y confirmar respuesta guiada sin consumo de Gemini.
+3. Preguntar por una cita y completar estilo/paleta: debe mantener la conversación y recomendar artículos solo cuando existan coincidencias disponibles.
+4. Activar Gemini desde Super Admin y probar una consulta libre; verificar `mode=gemini` cuando responda el proveedor.
+5. Comprobar que un visitante no pueda acceder a `/api/admin/clippy/settings` y que el backend aplique límites `429`.
+
+**No afecta** los controladores existentes de login, pagos, Webpay, Cloudinary ni inventario. Para ampliar o mantener este módulo, consultar la [documentación íntegra](docs/clippy/README.md) antes de alterar sus contratos.
+
+---
+
 ## Cloudinary y ciclo de vida de medios
 
 `backend/src/config/cloudinary.ts` configura cliente Cloudinary y Multer Storage. Clasifica uploads en carpetas: `nolimits_products`, `nolimits_settings`, `nolimits_expenses`, `nolimits_reviews`, `nolimits_returns` y `nolimits_avatars` según la ruta solicitante.
@@ -538,29 +591,28 @@ Para manejo de datos personales (email, RUT, dirección, teléfono, órdenes), d
 
 ## Despliegue en Vercel: estado y verificación
 
-### Diagrama ilustrativo: despliegue esperado
+### Arquitectura desplegada
 
 ```mermaid
 flowchart LR
-    DEV[Repositorio GitHub] --> VC[Vercel Frontend]
-    DEV --> API[Vercel / Runtime Backend]
-    VC -->|/api| API
-    API --> MDB[(MongoDB Atlas)]
-    API --> CLD[Cloudinary]
-    API --> GMAIL[Gmail API]
-    API --> TBK[Transbank Webpay]
-
-    R1[Validar vercel.json, cookies,
-rutas API y entorno serverless]
-    API -. pendiente .-> R1
+    G[GitHub: NotLimit_Proyecto] --> VS[Vercel Services]
+    VS --> FE[Frontend Vite / dist]
+    VS --> BE[Backend Express / src/app.ts]
+    FE -->|/api/*| BE
+    BE --> MDB[(MongoDB Atlas)]
+    BE --> CLD[Cloudinary]
+    BE --> GMAIL[Gmail API]
+    BE --> GEM[Gemini, si Clippy está activado]
+    BE --> WEBPAY[Webpay Plus]
 ```
 
+El equipo confirmó manualmente el funcionamiento de la API (`/api/health`), del catálogo que devuelve productos desde Atlas y del acceso Google en `https://notlimitproyecto.vercel.app`. Esto valida esas rutas concretas, **no** supone que todas las integraciones o transacciones financieras estén verificadas en producción.
 
-`vercel.json` propone dos servicios (`frontend` y `backend`) con `services`, `entrypoint` y `rewrites` hacia `destination.service`, además de cabeceras de caché y seguridad. **Esta sintaxis debe verificarse contra el esquema y la plataforma Vercel vigente**; no declarar la configuración como funcional sin un build real. El backend ejecuta `app.listen()` en `server.ts`, por lo que puede requerir un handler exportable o un ajuste de entrada para las funciones de Vercel.
+Para Vercel Services, la configuración de backend utilizada en las correcciones de noviembre de 2026 incluye: `root: "backend/"`, `framework: "express"`, `entrypoint: "src/app.ts"`, `installCommand: "npm ci --legacy-peer-deps --include=dev"`, `buildCommand: "npm run build"` y `outputDirectory: "."`. Este último ajuste permitió superar el error de resolución de `express` durante ejecución. El frontend se publica con Vite (`dist`) y sus peticiones usan `/api` mediante la redirección al servicio backend.
 
-**Checklist de despliegue:** (1) validar el archivo `vercel.json` y sus reglas; (2) ejecutar `npm run build` en ambos paquetes; (3) configurar secretos del backend en el entorno de Vercel; (4) definir frontend/orígenes/cookies y URLs de retorno de Webpay; (5) revisar logs de build y runtime; (6) probar `GET /api/health`, `GET /api/products`, login, Google, Gmail, uploads y pago de prueba; (7) comprobar que refrescar `/catalog` y `/product/:id` no devuelva 404; (8) verificar índices MongoDB antes de permitir canjes de cupones.
+**Checklist de despliegue:** (1) ejecutar `npm run build` en backend y frontend; (2) mantener los secretos en **Environment Variables** de Vercel, no en GitHub; (3) verificar la red autorizada en Atlas y no mantener reglas de acceso excesivamente abiertas sin un análisis de seguridad; (4) revisar los **Runtime Logs** después de desplegar; (5) comprobar `/api/health`, `/api/products`, `/api/store-settings` y `/api/clippy/config`; (6) probar Google, correo de bienvenida, Clippy guiado/Gemini, subidas Cloudinary y Webpay de integración; (7) comprobar políticas de caché y navegación con HashRouter.
 
-**No publicar una URL** como entorno estable únicamente porque el frontend compila. Una SPA que abre correctamente puede tener todas las llamadas a la API fallando. Registrar fecha, commit y resultado del despliegue cuando se realice.
+**Regla operativa:** `Ready` significa que Vercel terminó el despliegue; no sustituye las pruebas de endpoints. Los casos `Cannot find module 'express'`, `503` por Atlas o `origin_mismatch` de Google se diagnosticaron por separado y deben distinguirse si reaparecen.
 
 ---
 
@@ -638,6 +690,11 @@ Este README describe el código suministrado (exportación 22-11-2026), no certi
 Las tablas siguientes se generan a partir de las llamadas `router.get/post/put/patch/delete` de los archivos de rutas incluidos. La ruta final incorpora el prefijo montado desde `backend/src/routes/index.ts`. En particular, las rutas de administración están sometidas al middleware global de `super_admin`. Los controles adicionales se deben verificar en cada declaración y controlador.
 | Método | Endpoint | Archivo |
 |---|---|---|
+| `GET` | `/api/clippy/config` | `clippy.routes.ts` (pública) |
+| `POST` | `/api/clippy/ask` | `clippy.routes.ts` (pública, limitada) |
+| `GET` | `/api/admin/clippy/settings` | `clippy.routes.ts` (Super Admin) |
+| `PUT` | `/api/admin/clippy/settings` | `clippy.routes.ts` (Super Admin) |
+| `GET` | `/api/admin/clippy/usage` | `clippy.routes.ts` (Super Admin) |
 | `GET` | `/api/admin/coupons` | `admin.routes.ts` |
 | `GET` | `/api/admin/coupons/redemptions` | `admin.routes.ts` |
 | `POST` | `/api/admin/coupons` | `admin.routes.ts` |
@@ -724,6 +781,7 @@ Estos modelos Mongoose aparecen en `backend/src/models`. Los nombres de colecci�
 | `Review.model.ts` | Opiniones de productos |
 | `Return.model.ts` | Solicitudes de devolución |
 | `SystemAlert.model.ts` | Alertas y tareas administrativas |
+| `backend/src/clippy/clippy.model.ts` | `clippy_settings` (configuración) y `clippy_usage` (contadores TTL) |
 
 **Atención:** `backend/scripts/seed.ts` es actualmente un *stub*: imprime un mensaje y no crea efectivamente nueve colecciones. No anunciar que el seed ya pobló datos.
 
@@ -841,7 +899,7 @@ frontend/views/admin/Top10AnalyticsView.tsx
 
 **API REST:** interfaz HTTP entre React y Express. **JWT:** token firmado para acreditar sesión. **Cookie HttpOnly:** cookie que JavaScript no puede leer directamente. **CORS:** reglas de acceso entre orígenes. **CSRF:** ataque que intenta ejecutar una operación autenticada desde otro sitio. **Mongoose:** ODM de MongoDB. **SPA:** aplicación cuyo enrutamiento ocurre principalmente en navegador. **Idempotencia:** propiedad de una operación para no generar efectos duplicados al reintentarse. **Webhook/retorno de pago:** comunicación de resultado de una pasarela, que debe verificarse en el servidor.
 
-**Fuentes primarias utilizadas:** `backend_context(4).txt` (64 archivos), `frontend_context(4).txt` (181 archivos), capturas de ejemplo de estilo documental. Los archivos de exportación omiten `.env`, documentación preexistente y medios; por tanto, los valores reales de credenciales, contratos privados y estado de Vercel no pueden deducirse de ellos.
+**Fuentes primarias utilizadas:** `backend_context(4).txt` (64 archivos), `frontend_context(4).txt` (181 archivos), los parches verificados de Clippy y las capturas de prueba proporcionadas el 22-11-2026. El módulo Clippy está documentado extensamente en [`docs/clippy/README.md`](docs/clippy/README.md). Los archivos de exportación omiten `.env`, documentación preexistente y medios; por tanto, los valores reales de credenciales, contratos privados y estado de Vercel no pueden deducirse de ellos.
 
 **Política para mantener este README:** cada cambio relevante en rutas, variables, permisos, modelo de datos o despliegue debe reflejarse aquí en el mismo pull request. Actualizar la fecha de revisión y señalar los escenarios aún no probados.
 

@@ -13,6 +13,7 @@ import { AdminNotificationProvider } from './context/AdminNotificationContext';
 import { TopNavBar } from './components/layout/TopNavBar';
 import { OSDesktopTaskbar } from './components/layout/OSDesktopTaskbar';
 import { AppRoutes } from './routes/AppRoutes';
+import { ClippyWidget } from './clippy/ClippyWidget';
 import { GlobalSpinnerController } from './components/spinner/GlobalSpinner';
 // Instancia de Axios: /api funciona tanto con el proxy local como en Vercel.
 import { api } from './api/axios';
@@ -154,6 +155,8 @@ export default function App() {
 
                 {/* Barra de Tareas Inferior Windows XP Luna Blue con Menú de Expansión Corporativo */}
                 <OSDesktopTaskbar />
+                {/* Clippy se monta de forma aislada y se oculta en el panel administrativo. */}
+                <ClippyWidget />
                 {/* Carga global de sesión, rutas y solicitudes de datos. */}
                 <GlobalSpinnerController />
               </div>

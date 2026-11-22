@@ -19,7 +19,8 @@ import {
   Sparkles,
   Layers,
   Users,
-  Edit3
+  Edit3,
+  Bot
 } from 'lucide-react';
 import { PixelIcon } from '../common/PixelIcon';
 import { useAuth } from '../../context/AuthContext';
@@ -160,6 +161,14 @@ export const AdminSidebar: React.FC = () => {
   ];
 
   const extraAdminTools: SidebarItem[] = [
+    {
+      name: 'Administrar Clippy IA',
+      path: '/admin/clippy',
+      icon: <Bot className="w-4 h-4" />,
+      description: 'Preguntas, asesor de vestuario Gemini y protección antiabuso',
+      badge: 'IA',
+      superAdminOnly: true
+    },
     {
       name: 'Administrador de Productos',
       path: '/admin/product-manager',
