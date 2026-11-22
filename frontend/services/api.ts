@@ -122,15 +122,10 @@ class ApiClient {
     return res;
   }
 
-  async loginWithGoogle(payload?: {
-    email?: string;
-    name?: string;
-    googleId?: string;
-    avatarUrl?: string;
-  }): Promise<AuthResponse> {
+  async loginWithGoogle(credential: string): Promise<AuthResponse> {
     const res = await this.fetchBackend<AuthResponse>('/auth/google', {
       method: 'POST',
-      body: JSON.stringify(payload || {}),
+      body: JSON.stringify({ credential }),
     });
     return res;
   }

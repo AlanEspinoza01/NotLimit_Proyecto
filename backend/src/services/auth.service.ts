@@ -1,3 +1,4 @@
+import { OAuth2Client } from 'google-auth-library';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { UserModel, IUser } from '../models/User.model';
@@ -443,65 +444,78 @@ export const registerUserService = async (payload: {
 };
 
 /**
- * Servicio de autenticación con Google en MongoDB (`users`)
+ * Login federado de Google. Solo acepta el ID token firmado que entrega Google Identity Services.
+ * Nunca confiar en email, googleId, roles ni imágenes enviados directamente por un formulario.
  */
-export const googleAuthUserService = async (payload: {
-  email?: string;
-  name?: string;
-  googleId?: string;
-  avatarUrl?: string;
-}) => {
-  const normalizedEmail = (
-    payload.email || 'sebastian.stream@gmail.com'
-  )
-    .trim()
-    .toLowerCase();
-  const googleId = payload.googleId || `google_${normalizedEmail}`;
+export const googleAuthUserService = async (credential: string) => {
+  const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+  if (!clientId) throw new ApiError(503, 'Inicio con Google aún no configurado en el servidor.');
+  if (typeof credential !== 'string' || credential.length < 100 || credential.length > 10000) {
+    throw new ApiError(400, 'Credencial de Google inválida.');
+  }
 
-  let user = await UserModel.findOne({
-    $or: [{ googleId }, { email: normalizedEmail }],
-  }).select('+tokenVersion');
+  // Google Auth Library comprueba firma, audiencia, emisión y expiración del JWT.
+  let verified;
+  try {
+    verified = await new OAuth2Client(clientId).verifyIdToken({ idToken: credential, audience: clientId });
+  } catch {
+    throw new ApiError(401, 'Google no pudo verificar tu identidad. Intenta nuevamente.');
+  }
+  const claims = verified.getPayload();
+  const googleId = String(claims?.sub || '').trim();
+  const email = String(claims?.email || '').trim().toLowerCase();
+  if (!googleId || !email || claims?.email_verified !== true ||
+      !['accounts.google.com', 'https://accounts.google.com'].includes(String(claims?.iss || ''))) {
+    throw new ApiError(401, 'La cuenta de Google no tiene un correo verificado.');
+  }
 
+  // El ID de Google (sub) es permanente. Correo por sí solo nunca confiere permisos administrativos.
+  let user = await UserModel.findOne({ googleId }).select('+tokenVersion +lockUntil');
+  let isNewAccount = false;
+  if (user && user.email !== email) {
+    throw new ApiError(409, 'La identidad de Google está vinculada a otro correo. Contacta a soporte.');
+  }
   if (!user) {
-    const nameParts = (payload.name || 'Sebastián Cyber Guest')
-      .trim()
-      .split(/\s+/);
-    const firstName = nameParts[0] || 'Usuario';
-    const lastName = nameParts.slice(1).join(' ');
-
+    user = await UserModel.findOne({ email }).select('+tokenVersion +lockUntil');
+  }
+  if (user && user.role !== 'registered') {
+    // Previene convertir un Google token en una puerta alternativa al panel administrador.
+    throw new ApiError(403, 'Las cuentas administrativas deben ingresar con su método autorizado.');
+  }
+  if (user && user.googleId && user.googleId !== googleId) {
+    throw new ApiError(409, 'Esta cuenta está vinculada a otra identidad de Google.');
+  }
+  if (user && user.isActive === false) {
+    throw new ApiError(403, 'Esta cuenta está desactivada.');
+  }
+  if (user?.lockUntil && user.lockUntil.getTime() > Date.now()) {
+    throw new ApiError(423, 'Cuenta bloqueada temporalmente. Inténtalo más tarde.');
+  }
+  if (!user) {
+    // Se crean solamente cuentas de cliente, sin contraseña ni privilegios administrativos.
+    const firstName = String(claims?.given_name || claims?.name || email.split('@')[0]).trim().slice(0, 80);
+    const lastName = String(claims?.family_name || '').trim().slice(0, 80);
     user = await UserModel.create({
-      firstName,
-      lastName,
-      email: normalizedEmail,
-      googleId,
-      tokenVersion: 0,
-      failedLoginAttempts: 0,
-      lockUntil: null,
-      avatarUrl:
-        payload.avatarUrl ||
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-      role: 'registered',
-      branchId: null,
-      loyaltyPoints: 150,
-      lastPointsReason: 'Bono de bienvenida con Google Auth',
-      tags: ['Normal'],
+      firstName: firstName || 'Cliente', lastName, email, googleId,
+      passwordHash: null, tokenVersion: 0, failedLoginAttempts: 0, lockUntil: null,
+      phone: '', avatarUrl: String(claims?.picture || '').startsWith('https://') ? claims!.picture : '',
+      role: 'registered', branchId: null, loyaltyPoints: 100,
+      lastPointsReason: 'Bono de bienvenida por registro en NoLimits', tags: ['Normal'],
       isActive: true,
     });
+    isNewAccount = true;
   } else if (!user.googleId) {
+    // Solo vinculamos clientes cuyo correo coincide con el correo VERIFICADO del token.
     user.googleId = googleId;
-    if (payload.avatarUrl && !user.avatarUrl) {
-      user.avatarUrl = payload.avatarUrl;
+    if (!user.avatarUrl && String(claims?.picture || '').startsWith('https://')) {
+      user.avatarUrl = String(claims?.picture);
     }
     await user.save();
   }
 
   const serialized = serializeUser(user);
-  const token = generateAuthToken({
-    userId: serialized.id,
-    tokenVersion: user.tokenVersion ?? 0,
-  });
-
-  return { user: serialized, token };
+  const token = generateAuthToken({ userId: serialized.id, tokenVersion: user.tokenVersion ?? 0 });
+  return { user: serialized, token, isNewAccount };
 };
 
 /**

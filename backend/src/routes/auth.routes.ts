@@ -5,6 +5,7 @@ import {
   loginController,
   registerController,
   googleAuthController,
+  googleLoginConfigController,
   getMeController,
   logoutController,
   updateProfileController,
@@ -38,8 +39,11 @@ authRouter.post('/login', authLimiter, loginController);
 // POST /api/auth/register -> Registrar nuevo cliente en MongoDB (users)
 authRouter.post('/register', authLimiter, registerController);
 
-// POST /api/auth/google -> Iniciar sesión o registrar vía Google
-authRouter.post('/google', authLimiter, googleAuthController);
+// GET /api/auth/google/config -> Identificador público para Google Identity Services.
+authRouter.get('/google/config', googleLoginConfigController);
+
+// POST /api/auth/google -> ID token firmado, origen permitido y rate limiting.
+authRouter.post('/google', authLimiter, validateRequestOrigin, googleAuthController);
 
 // GET /api/auth/me -> Obtener sesión actual verificada por authenticateUser
 authRouter.get('/me', authenticateUser, getMeController);

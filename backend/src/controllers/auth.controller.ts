@@ -12,6 +12,7 @@ import {
   getAuthCookieClearOptions,
 } from '../utils/tokenUtils';
 import { ApiError } from '../utils/ApiError';
+import { notifyWelcomeWithoutFailingRegistration } from '../services/googleMail.service';
 
 /**
  * POST /api/auth/login
@@ -64,6 +65,11 @@ export const registerController = async (
 
     res.cookie(AUTH_COOKIE_NAME, result.token, getAuthCookieOptions());
 
+    // El alta ya está persistida en MongoDB. Un fallo de Gmail no cancela la cuenta.
+    await notifyWelcomeWithoutFailingRegistration({
+      email: result.user.email, firstName: result.user.firstName || 'Cliente',
+    });
+
     res.status(201).json({
       ok: true,
       success: true,
@@ -78,17 +84,31 @@ export const registerController = async (
  * POST /api/auth/google
  * Autentica o crea un usuario mediante Google Auth en la colección `users` de MongoDB.
  */
+// El Client ID es público; se entrega desde el backend para no requerir un .env extra en frontend.
+export const googleLoginConfigController = (_req: express.Request, res: express.Response): void => {
+  const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+  res.set('Cache-Control', 'no-store');
+  res.status(200).json({ enabled: Boolean(clientId), clientId });
+};
+
+/** Iniciar sesión con un ID token firmado y validado por Google en nuestro backend. */
 export const googleAuthController = async (
-  _req: express.Request,
-  res: express.Response,
-  _next: express.NextFunction
+  req: express.Request, res: express.Response, next: express.NextFunction
 ): Promise<void> => {
-  // El flujo anterior aceptaba email/googleId sin firma: permitía suplantación de identidad.
-  // Se deshabilita hasta verificar un Google ID Token en el servidor con su audience oficial.
-  res.status(503).json({
-    success:false, ok:false,
-    message:'Acceso Google temporalmente deshabilitado: falta verificar el ID Token firmado en el backend.'
-  });
+  try {
+    const credential = req.body?.credential;
+    const result = await googleAuthUserService(credential);
+    // Mantener la política de sesión existente: cookie HttpOnly, sin token en localStorage.
+    res.cookie(AUTH_COOKIE_NAME, result.token, getAuthCookieOptions());
+    if (result.isNewAccount) {
+      await notifyWelcomeWithoutFailingRegistration({
+        email: result.user.email, firstName: result.user.firstName || 'Cliente',
+      });
+    }
+    res.status(200).json({ ok: true, success: true, user: result.user });
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**

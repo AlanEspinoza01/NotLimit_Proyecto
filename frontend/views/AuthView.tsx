@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AlertTriangle, KeyRound, Users, UserPlus } from 'lucide-react';
+import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 
 type AuthScreen = 'options' | 'login' | 'register';
 
 export const AuthView = () => {
-  const { login, register, isAuthenticated, currentRole } = useAuth();
+  const { login, register, loginWithGoogle, isAuthenticated, currentRole } = useAuth();
   const navigate = useNavigate();
 
   // Controla qué pantalla se está mostrando (Opciones, Login, o Registro)
@@ -68,6 +69,19 @@ export const AuthView = () => {
         error.response?.data?.message || 
         'Ocurrió un error al intentar registrar la cuenta.'
       );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // GIS entrega únicamente una credencial firmada; la identidad se valida en Express.
+  const handleGoogleCredential = async (credential: string) => {
+    setErrorMessage('');
+    setIsSubmitting(true);
+    try {
+      await loginWithGoogle(credential);
+    } catch (error: any) {
+      setErrorMessage(error?.response?.data?.message || 'No se pudo iniciar sesión con Google.');
     } finally {
       setIsSubmitting(false);
     }
@@ -140,13 +154,8 @@ export const AuthView = () => {
           {/* === PANTALLA 1: OPCIONES INICIALES === */}
           {currentScreen === 'options' && (
             <div className="space-y-4 px-2 pb-4">
-              <button
-                type="button"
-                className="w-full bg-[#1a73e8] hover:bg-[#1557b0] text-white font-bold text-xs py-2.5 border border-[#0d47a1] shadow-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
-              >
-                <span className="bg-white text-[#1a73e8] font-black rounded-full w-5 h-5 flex items-center justify-center text-[10px]">G</span>
-                <span>Continuar con Google</span>
-              </button>
+              {/* Google Identity Services renderiza su botón oficial en la estética de nuestra ventana XP. */}
+              <GoogleSignInButton onCredential={handleGoogleCredential} disabled={isSubmitting} />
 
               <button
                 type="button"

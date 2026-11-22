@@ -12,7 +12,7 @@ export interface AuthContextType {
   currentUser: User | null; currentRole: RoleType; isAuthenticated: boolean; isLoading: boolean;
   login:(email:string,password?:string)=>Promise<User>;
   register:(payload:RegisterPayload)=>Promise<User>;
-  loginWithGoogle:(payload?:{email?:string;name?:string;googleId?:string;avatarUrl?:string})=>Promise<User>;
+  loginWithGoogle:(credential:string)=>Promise<User>;
   logout:()=>Promise<void>; switchRole:(role:RoleType)=>void;
   updateProfile:(updates:Partial<User> | FormData)=>Promise<void>;
   addLoyaltyPoints:(points:number,reason?:string)=>Promise<void>;
@@ -47,8 +47,9 @@ export const AuthProvider:React.FC<{children:React.ReactNode}>=({children})=>{
     if(!data?.user)throw new Error('La API no devolvió el usuario');
     setCurrentUser(data.user);return data.user;
   };
-  const loginWithGoogle=async(payload?:{email?:string;name?:string;googleId?:string;avatarUrl?:string}):Promise<User>=>{
-    const {data}=await api.post('/auth/google',payload||{});
+  const loginWithGoogle=async(credential:string):Promise<User>=>{
+    // El navegador entrega un ID token firmado; el backend verifica la firma y audiencia.
+    const {data}=await api.post('/auth/google',{credential});
     if(!data?.user)throw new Error('La API no devolvió el usuario');
     setCurrentUser(data.user);return data.user;
   };
