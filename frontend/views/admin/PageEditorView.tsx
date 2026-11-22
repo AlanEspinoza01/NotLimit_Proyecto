@@ -108,6 +108,26 @@ export const PageEditorView: React.FC = () => {
   const [slideImageFile, setSlideImageFile] = useState<File | null>(null);
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
 
+  // Sincronizar el fondo en este navegador y notificar a App.tsx.
+  // MongoDB sigue siendo la fuente oficial; localStorage es únicamente una copia.
+  const publishBackground = (config: CustomBackgroundConfig | null): void => {
+    try {
+      // Si se restauró Bliss, eliminamos la copia local anterior.
+      if (config === null) {
+        localStorage.removeItem(STORAGE_BACKGROUND_KEY);
+      } else {
+        // Guardamos el fondo devuelto por MongoDB, no una URL temporal.
+        localStorage.setItem(STORAGE_BACKGROUND_KEY, JSON.stringify(config));
+      }
+    } catch {
+      // Un navegador que bloquee el almacenamiento no debe impedir la actualización.
+      console.warn('[FONDO] No se pudo actualizar la copia de localStorage.');
+    }
+
+    // App.tsx escucha este evento y consulta la versión vigente en MongoDB.
+    window.dispatchEvent(new Event('nl_background_updated'));
+  };
+
   // Función centralizada para sincronizar cambios en MongoDB (+ Cloudinary si hay archivo)
   const syncStoreSettingsToBackend = async (
     partialSettings: Record<string, any>,
@@ -135,7 +155,7 @@ export const PageEditorView: React.FC = () => {
     try {
       const saved = localStorage.getItem(STORAGE_HOME_MEDIA_KEY);
       if (saved) return { ...DEFAULT_HOME_MEDIA_CONFIG, ...JSON.parse(saved) };
-    } catch (e) {}
+    } catch (e) { }
     return DEFAULT_HOME_MEDIA_CONFIG;
   });
 
@@ -211,7 +231,7 @@ export const PageEditorView: React.FC = () => {
         message: '✓ Pantalla multimedia del Home restablecida en MongoDB y Cloudinary.'
       });
       setTimeout(() => setFeedback(null), 3000);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // ==========================================================================
@@ -235,7 +255,7 @@ export const PageEditorView: React.FC = () => {
     try {
       localStorage.setItem(STORAGE_INFORMATIVE_KEY, JSON.stringify(informativeConfig));
       window.dispatchEvent(new Event('nl_informative_config_updated'));
-    } catch (e) {}
+    } catch (e) { }
   }, [
     informativeConfig.whatsappNumber,
     informativeConfig.instagramUrl,
@@ -269,7 +289,7 @@ export const PageEditorView: React.FC = () => {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch (e) {}
+    } catch (e) { }
     return DEFAULT_SLIDES;
   });
 
@@ -280,7 +300,7 @@ export const PageEditorView: React.FC = () => {
         const parsedSpeed = Number(savedSpeed);
         if (!isNaN(parsedSpeed) && parsedSpeed >= 1000) return parsedSpeed;
       }
-    } catch (e) {}
+    } catch (e) { }
     return 4500;
   });
 
@@ -401,11 +421,11 @@ export const PageEditorView: React.FC = () => {
       const updated = slides.map((s) =>
         s.id === editingSlide.id
           ? {
-              ...s,
-              imageUrl: cleanUrl,
-              title: slideTitle.trim(),
-              tag: slideTag.trim() || undefined
-            }
+            ...s,
+            imageUrl: cleanUrl,
+            title: slideTitle.trim(),
+            tag: slideTag.trim() || undefined
+          }
           : s
       );
       await handleSaveSlidesToStorage(updated, editingSlide.id, slideImageFile);
@@ -446,10 +466,10 @@ export const PageEditorView: React.FC = () => {
             comment: doc.comment || '',
             date: doc.createdAt
               ? new Date(doc.createdAt).toLocaleDateString('es-CL', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric'
-                })
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              })
               : '',
             verifiedPurchase: true,
             photos: Array.isArray(doc.photos) ? doc.photos : [],
@@ -608,7 +628,7 @@ export const PageEditorView: React.FC = () => {
     setReviews(updated);
     try {
       localStorage.setItem(STORAGE_REVIEWS_KEY, JSON.stringify(updated));
-    } catch (err) {}
+    } catch (err) { }
 
     // Sincronizar también con el directorio de clientes (STORAGE_CUSTOMERS_KEY)
     try {
@@ -684,34 +704,34 @@ export const PageEditorView: React.FC = () => {
           fechaRegistro: new Date().toISOString().split('T')[0],
           blacklistReports: isBlacklist
             ? [
-                {
-                  id: `bl_rep_${Date.now()}`,
-                  date: nowFormatted,
-                  reason: recordReason.trim(),
-                  debtAmount: debtVal,
-                  notes: recordNotes.trim() || undefined,
-                  recordedBy: recordAdminName.trim() || 'Super Admin'
-                }
-              ]
+              {
+                id: `bl_rep_${Date.now()}`,
+                date: nowFormatted,
+                reason: recordReason.trim(),
+                debtAmount: debtVal,
+                notes: recordNotes.trim() || undefined,
+                recordedBy: recordAdminName.trim() || 'Super Admin'
+              }
+            ]
             : [],
           preferentialReports: !isBlacklist
             ? [
-                {
-                  id: `pref_rep_${Date.now()}`,
-                  date: nowFormatted,
-                  reason: recordReason.trim(),
-                  benefit: recordBenefit.trim() || undefined,
-                  notes: recordNotes.trim() || undefined,
-                  recordedBy: recordAdminName.trim() || 'Super Admin'
-                }
-              ]
+              {
+                id: `pref_rep_${Date.now()}`,
+                date: nowFormatted,
+                reason: recordReason.trim(),
+                benefit: recordBenefit.trim() || undefined,
+                notes: recordNotes.trim() || undefined,
+                recordedBy: recordAdminName.trim() || 'Super Admin'
+              }
+            ]
             : []
         };
         custList = [newCust, ...custList];
       }
 
       localStorage.setItem(STORAGE_CUSTOMERS_KEY, JSON.stringify(custList));
-    } catch (e) {}
+    } catch (e) { }
 
     setIsAddReviewModalOpen(false);
     setTargetReviewForRecord(null);
@@ -761,7 +781,7 @@ export const PageEditorView: React.FC = () => {
     try {
       const saved = localStorage.getItem(STORAGE_SHIPPING_RATES_KEY);
       if (saved) return JSON.parse(saved);
-    } catch (e) {}
+    } catch (e) { }
     return JSON.parse(JSON.stringify(defaultShippingRatesMatrix));
   });
 
@@ -772,7 +792,7 @@ export const PageEditorView: React.FC = () => {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
       }
-    } catch (e) {}
+    } catch (e) { }
     return [];
   });
 
@@ -795,7 +815,7 @@ export const PageEditorView: React.FC = () => {
     setShippingHistory(updatedHistory);
     try {
       localStorage.setItem(STORAGE_SHIPPING_HISTORY_KEY, JSON.stringify(updatedHistory));
-    } catch (e) {}
+    } catch (e) { }
     return updatedHistory;
   };
 
@@ -821,8 +841,8 @@ export const PageEditorView: React.FC = () => {
       inflationScope === 'all'
         ? 'Todo Chile (Todas las Agencias)'
         : inflationScope === 'region'
-        ? `${selectedShippingRegion} (${getCourierDisplayName(selectedCourier)})`
-        : `Solo Agencia ${getCourierDisplayName(inflationScope)}`;
+          ? `${selectedShippingRegion} (${getCourierDisplayName(selectedCourier)})`
+          : `Solo Agencia ${getCourierDisplayName(inflationScope)}`;
 
     const nextHistory = recordShippingSnapshot(
       `Antes de aplicar reajuste ${rate > 0 ? '+' : ''}${rate}% en ${scopeDesc}`,
@@ -859,7 +879,7 @@ export const PageEditorView: React.FC = () => {
     try {
       localStorage.setItem(STORAGE_SHIPPING_RATES_KEY, JSON.stringify(updated));
       await syncStoreSettingsToBackend({ shippingRatesMatrix: updated, shippingHistory: nextHistory });
-    } catch (e) {}
+    } catch (e) { }
 
     setIsInflationConfirmOpen(false);
     setFeedback({
@@ -878,7 +898,7 @@ export const PageEditorView: React.FC = () => {
       localStorage.setItem(STORAGE_SHIPPING_RATES_KEY, JSON.stringify(latest.matrix));
       localStorage.setItem(STORAGE_SHIPPING_HISTORY_KEY, JSON.stringify(rest));
       await syncStoreSettingsToBackend({ shippingRatesMatrix: latest.matrix, shippingHistory: rest });
-    } catch (e) {}
+    } catch (e) { }
     setFeedback({
       type: 'success',
       message: `✓ Cambio deshecho. Se restauraron las tarifas previas (${latest.date}) en MongoDB.`
@@ -893,7 +913,7 @@ export const PageEditorView: React.FC = () => {
     try {
       localStorage.setItem(STORAGE_SHIPPING_RATES_KEY, JSON.stringify(restored));
       await syncStoreSettingsToBackend({ shippingRatesMatrix: restored, shippingHistory: nextHistory });
-    } catch (e) {}
+    } catch (e) { }
     setIsShippingHistoryOpen(false);
     setFeedback({
       type: 'success',
@@ -909,7 +929,7 @@ export const PageEditorView: React.FC = () => {
     try {
       localStorage.setItem(STORAGE_SHIPPING_RATES_KEY, JSON.stringify(freshCopy));
       await syncStoreSettingsToBackend({ shippingRatesMatrix: freshCopy, shippingHistory: nextHistory });
-    } catch (e) {}
+    } catch (e) { }
     setIsResetFactoryConfirmOpen(false);
     setIsShippingHistoryOpen(false);
     setFeedback({
@@ -932,7 +952,7 @@ export const PageEditorView: React.FC = () => {
     try {
       localStorage.setItem(STORAGE_SHIPPING_RATES_KEY, JSON.stringify(copy));
       await syncStoreSettingsToBackend({ shippingRatesMatrix: copy, shippingHistory: nextHistory });
-    } catch (e) {}
+    } catch (e) { }
     setFeedback({
       type: 'success',
       message: `✓ Tarifas de ${city} (${selectedCourier.toUpperCase()}) restauradas en MongoDB.`
@@ -960,7 +980,7 @@ export const PageEditorView: React.FC = () => {
     try {
       localStorage.setItem(STORAGE_SHIPPING_RATES_KEY, JSON.stringify(copy));
       await syncStoreSettingsToBackend({ shippingRatesMatrix: copy, shippingHistory: nextHistory });
-    } catch (e) {}
+    } catch (e) { }
     setFeedback({
       type: 'success',
       message: `✓ Tramos de ${city} calculados y guardados en MongoDB.`
@@ -1094,11 +1114,11 @@ export const PageEditorView: React.FC = () => {
 
   const handleToggleCouponActive = async (coup: CouponItem) => {
     try {
-      await api.patch(`/admin/coupons/${encodeURIComponent(coup.id)}`, {isActive: !coup.isActive});
+      await api.patch(`/admin/coupons/${encodeURIComponent(coup.id)}`, { isActive: !coup.isActive });
       await refreshAdminCoupons();
-      setFeedback({type:'success',message:`Cupón ${!coup.isActive ? 'activado' : 'pausado'} en MongoDB`});
+      setFeedback({ type: 'success', message: `Cupón ${!coup.isActive ? 'activado' : 'pausado'} en MongoDB` });
     } catch (error: any) {
-      setFeedback({type:'error',message:error.response?.data?.message || 'No se pudo actualizar el cupón'});
+      setFeedback({ type: 'error', message: error.response?.data?.message || 'No se pudo actualizar el cupón' });
     }
   };
 
@@ -1118,16 +1138,16 @@ export const PageEditorView: React.FC = () => {
       maxUses: Number(couponMaxUses)
     };
     if (!payload.name || !payload.code || payload.pointsCost <= 0 || payload.maxUses < 1) {
-      setFeedback({type:'error',message:'Revisa nombre, prefijo, puntos y límite de canjes'});return;
+      setFeedback({ type: 'error', message: 'Revisa nombre, prefijo, puntos y límite de canjes' }); return;
     }
     try {
-      if (editingCouponId) await api.put(`/admin/coupons/${encodeURIComponent(editingCouponId)}`,payload);
-      else await api.post('/admin/coupons',payload);
+      if (editingCouponId) await api.put(`/admin/coupons/${encodeURIComponent(editingCouponId)}`, payload);
+      else await api.post('/admin/coupons', payload);
       await refreshAdminCoupons();
       setCouponModalOpen(false);
-      setFeedback({type:'success',message:'Cupón guardado correctamente en MongoDB'});
+      setFeedback({ type: 'success', message: 'Cupón guardado correctamente en MongoDB' });
     } catch (error: any) {
-      setFeedback({type:'error',message:error.response?.data?.message || 'No se pudo guardar el cupón'});
+      setFeedback({ type: 'error', message: error.response?.data?.message || 'No se pudo guardar el cupón' });
     }
   };
 
@@ -1137,9 +1157,9 @@ export const PageEditorView: React.FC = () => {
       await api.delete(`/admin/coupons/${encodeURIComponent(couponToDelete.id)}`);
       await refreshAdminCoupons();
       setCouponToDelete(null);
-      setFeedback({type:'success',message:'Cupón retirado del catálogo de MongoDB'});
+      setFeedback({ type: 'success', message: 'Cupón retirado del catálogo de MongoDB' });
     } catch (error: any) {
-      setFeedback({type:'error',message:error.response?.data?.message || 'No se pudo eliminar el cupón'});
+      setFeedback({ type: 'error', message: error.response?.data?.message || 'No se pudo eliminar el cupón' });
     }
   };
 
@@ -1168,8 +1188,8 @@ export const PageEditorView: React.FC = () => {
     const updatedDisabledSections = currentlyActive
       ? [...categoriesVisibility.disabledSections, sectionName]
       : categoriesVisibility.disabledSections.filter(
-          (s) => s.toLowerCase() !== sectionName.toLowerCase()
-        );
+        (s) => s.toLowerCase() !== sectionName.toLowerCase()
+      );
     const nextConfig: CategoriesVisibilityConfig = {
       ...categoriesVisibility,
       disabledSections: updatedDisabledSections
@@ -1178,12 +1198,11 @@ export const PageEditorView: React.FC = () => {
     saveCategoriesVisibility(nextConfig);
     try {
       await syncStoreSettingsToBackend({ categoriesVisibility: nextConfig });
-    } catch (e) {}
+    } catch (e) { }
     setFeedback({
       type: 'success',
-      message: `✓ Sección "${sectionName}" ahora está ${
-        currentlyActive ? 'DESACTIVADA' : 'ACTIVA'
-      } en MongoDB.`
+      message: `✓ Sección "${sectionName}" ahora está ${currentlyActive ? 'DESACTIVADA' : 'ACTIVA'
+        } en MongoDB.`
     });
     setTimeout(() => setFeedback(null), 3000);
   };
@@ -1195,14 +1214,14 @@ export const PageEditorView: React.FC = () => {
     );
     const updatedDisabledCategories = isDirectlyDisabled
       ? categoriesVisibility.disabledCategories.filter(
-          (c) => c.toLowerCase() !== key.toLowerCase()
-        )
+        (c) => c.toLowerCase() !== key.toLowerCase()
+      )
       : [...categoriesVisibility.disabledCategories, key];
 
     const updatedDisabledSections = isDirectlyDisabled
       ? categoriesVisibility.disabledSections.filter(
-          (s) => s.toLowerCase() !== sectionName.toLowerCase()
-        )
+        (s) => s.toLowerCase() !== sectionName.toLowerCase()
+      )
       : categoriesVisibility.disabledSections;
 
     const nextConfig: CategoriesVisibilityConfig = {
@@ -1214,12 +1233,11 @@ export const PageEditorView: React.FC = () => {
     saveCategoriesVisibility(nextConfig);
     try {
       await syncStoreSettingsToBackend({ categoriesVisibility: nextConfig });
-    } catch (e) {}
+    } catch (e) { }
     setFeedback({
       type: 'success',
-      message: `✓ Categoría "${sectionName} › ${categoryName}" ahora está ${
-        isDirectlyDisabled ? 'ACTIVA' : 'DESACTIVADA'
-      } en MongoDB.`
+      message: `✓ Categoría "${sectionName} › ${categoryName}" ahora está ${isDirectlyDisabled ? 'ACTIVA' : 'DESACTIVADA'
+        } en MongoDB.`
     });
     setTimeout(() => setFeedback(null), 3000);
   };
@@ -1237,20 +1255,20 @@ export const PageEditorView: React.FC = () => {
 
     const updatedDisabledSubcategories = isDirectlyDisabled
       ? categoriesVisibility.disabledSubcategories.filter(
-          (sc) => sc.toLowerCase() !== subKey.toLowerCase()
-        )
+        (sc) => sc.toLowerCase() !== subKey.toLowerCase()
+      )
       : [...categoriesVisibility.disabledSubcategories, subKey];
 
     const updatedDisabledCategories = isDirectlyDisabled
       ? categoriesVisibility.disabledCategories.filter(
-          (c) => c.toLowerCase() !== catKey.toLowerCase()
-        )
+        (c) => c.toLowerCase() !== catKey.toLowerCase()
+      )
       : categoriesVisibility.disabledCategories;
 
     const updatedDisabledSections = isDirectlyDisabled
       ? categoriesVisibility.disabledSections.filter(
-          (s) => s.toLowerCase() !== sectionName.toLowerCase()
-        )
+        (s) => s.toLowerCase() !== sectionName.toLowerCase()
+      )
       : categoriesVisibility.disabledSections;
 
     const nextConfig: CategoriesVisibilityConfig = {
@@ -1262,12 +1280,11 @@ export const PageEditorView: React.FC = () => {
     saveCategoriesVisibility(nextConfig);
     try {
       await syncStoreSettingsToBackend({ categoriesVisibility: nextConfig });
-    } catch (e) {}
+    } catch (e) { }
     setFeedback({
       type: 'success',
-      message: `✓ Subcategoría "${sectionName} › ${categoryName} › ${subcategoryName}" ahora está ${
-        isDirectlyDisabled ? 'ACTIVA' : 'DESACTIVADA'
-      } en MongoDB.`
+      message: `✓ Subcategoría "${sectionName} › ${categoryName} › ${subcategoryName}" ahora está ${isDirectlyDisabled ? 'ACTIVA' : 'DESACTIVADA'
+        } en MongoDB.`
     });
     setTimeout(() => setFeedback(null), 3000);
   };
@@ -1282,7 +1299,7 @@ export const PageEditorView: React.FC = () => {
     saveCategoriesVisibility(cleanConfig);
     try {
       await syncStoreSettingsToBackend({ categoriesVisibility: cleanConfig });
-    } catch (e) {}
+    } catch (e) { }
     setFeedback({
       type: 'success',
       message: '✓ ¡Todas las secciones, categorías y subcategorías fueron activadas en MongoDB!'
@@ -1348,8 +1365,8 @@ export const PageEditorView: React.FC = () => {
       setBackgroundConfig(savedBg);
       setDraftBgUrl(savedBg.imageUrl);
       setBackgroundFile(null);
-      localStorage.setItem(STORAGE_BACKGROUND_KEY, JSON.stringify(savedBg));
-      window.dispatchEvent(new Event('nl_background_updated'));
+      // Actualizamos el fondo visible después de confirmar el guardado en MongoDB.
+      publishBackground(savedBg);
       setFeedback({
         type: 'success',
         message: '✓ ¡Fondo personalizado subido a Cloudinary y sincronizado en MongoDB!'
@@ -1372,20 +1389,28 @@ export const PageEditorView: React.FC = () => {
       updatedAt: ''
     };
     try {
+      // Solo restaurar la interfaz después de confirmar el cambio en MongoDB.
       await syncStoreSettingsToBackend({ backgroundConfig: defaultBg });
-      localStorage.removeItem(STORAGE_BACKGROUND_KEY);
-    } catch (e) {}
-    setBackgroundConfig(defaultBg);
-    setDraftBgUrl('');
-    setDraftBgFileName('');
-    setBackgroundFile(null);
-    setDraftBgFitMode('cover');
-    window.dispatchEvent(new Event('nl_background_updated'));
-    setFeedback({
-      type: 'success',
-      message: '✓ Fondo original (Windows XP Bliss) restaurado y limpiado en Cloudinary.'
-    });
-    setTimeout(() => setFeedback(null), 3500);
+      setBackgroundConfig(defaultBg);
+      setDraftBgUrl('');
+      setDraftBgFileName('');
+      setBackgroundFile(null);
+      setDraftBgFitMode('cover');
+      publishBackground(null);
+      setFeedback({
+        type: 'success',
+        message: '✓ Fondo original (Windows XP Bliss) restaurado en MongoDB.'
+      });
+      setTimeout(() => setFeedback(null), 3500);
+    } catch (error) {
+      // No afirmar éxito ni borrar el fondo local cuando el servidor falla.
+      console.error('[FONDO] No se pudo restaurar el fondo oficial:', error);
+      setFeedback({
+        type: 'error',
+        message: 'No fue posible restaurar el fondo en MongoDB. Inténtalo nuevamente.'
+      });
+      setTimeout(() => setFeedback(null), 4000);
+    }
   };
 
   // ==========================================================================
@@ -1425,7 +1450,8 @@ export const PageEditorView: React.FC = () => {
           setDraftBgUrl(dbData.backgroundConfig.imageUrl || '');
           setDraftBgFileName(dbData.backgroundConfig.fileName || '');
           setDraftBgFitMode(dbData.backgroundConfig.fitMode || 'cover');
-          localStorage.setItem(STORAGE_BACKGROUND_KEY, JSON.stringify(dbData.backgroundConfig));
+          // Sincronizar el fondo que devuelve MongoDB al abrir el editor.
+          publishBackground(dbData.backgroundConfig);
         }
         if (dbData.categoriesVisibility && dbData.categoriesVisibility.disabledSections) {
           setCategoriesVisibility(dbData.categoriesVisibility);

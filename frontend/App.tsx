@@ -14,9 +14,12 @@ import { TopNavBar } from './components/layout/TopNavBar';
 import { OSDesktopTaskbar } from './components/layout/OSDesktopTaskbar';
 import { AppRoutes } from './routes/AppRoutes';
 import { GlobalSpinnerController } from './components/spinner/GlobalSpinner';
+// Instancia de Axios: /api funciona tanto con el proxy local como en Vercel.
+import { api } from './api/axios';
 import {
   loadCustomBackgroundConfig,
-  CustomBackgroundConfig
+  STORAGE_BACKGROUND_KEY,
+  type CustomBackgroundConfig
 } from './views/admin/PageEditorView';
 
 export default function App() {
@@ -25,14 +28,89 @@ export default function App() {
   );
 
   useEffect(() => {
-    const syncBackground = () => {
-      setCustomBg(loadCustomBackgroundConfig());
+    // Evita actualizar el componente si el usuario cambia de página al desmontarlo.
+    let mounted = true;
+
+    // Identificador para descartar respuestas antiguas cuando hay varias solicitudes.
+    let latestRequest = 0;
+
+    // Muestra inmediatamente el respaldo local mientras se consulta MongoDB.
+    const syncLocalBackground = () => {
+      if (mounted) setCustomBg(loadCustomBackgroundConfig());
     };
-    window.addEventListener('nl_background_updated', syncBackground);
-    window.addEventListener('storage', syncBackground);
+
+    // MongoDB es la fuente oficial del fondo visible para todos los visitantes.
+    const loadOfficialBackground = async (): Promise<void> => {
+      // Una respuesta anterior nunca debe sobrescribir una edición reciente.
+      const requestId = ++latestRequest;
+
+      try {
+        // Consultar la ruta pública, sin permisos administrativos.
+        // El parámetro cambia en cada consulta para evitar respuestas obsoletas.
+        const response = await api.get('/store-settings', {
+          params: { _ts: Date.now() }
+        });
+
+        // Ignorar solicitudes antiguas o efectos desmontados.
+        if (!mounted || requestId !== latestRequest) return;
+
+        // El backend devuelve { success: true, data: { backgroundConfig: ... } }.
+        const raw = response.data?.data?.backgroundConfig;
+        if (!raw || typeof raw !== 'object') return;
+
+        // Normalizar los campos para impedir valores incompletos.
+        const officialBg: CustomBackgroundConfig = {
+          imageUrl: typeof raw.imageUrl === 'string' ? raw.imageUrl : '',
+          fileName: typeof raw.fileName === 'string' ? raw.fileName : '',
+          fitMode: raw.fitMode === 'contain' || raw.fitMode === 'repeat'
+            ? raw.fitMode
+            : 'cover',
+          updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : ''
+        };
+
+        // Aplicar el fondo oficial sin necesidad de entrar al panel admin.
+        setCustomBg(officialBg);
+
+        try {
+          // Guardar la versión oficial como respaldo para futuras visitas.
+          localStorage.setItem(STORAGE_BACKGROUND_KEY, JSON.stringify(officialBg));
+        } catch {
+          // La visualización seguirá funcionando si localStorage está bloqueado.
+          console.warn('[FONDO] localStorage no está disponible.');
+        }
+      } catch (error) {
+        // Conservar el fondo local mientras la API no esté disponible.
+        if (mounted && requestId === latestRequest) {
+          console.warn('[FONDO] No se pudo cargar MongoDB:', error);
+        }
+      }
+    };
+
+    // Reflejar las ediciones del admin inmediatamente, incluso las vistas previas.
+    // No volvemos a consultar MongoDB aquí porque el editor permite previsualizar
+    // cambios de tamaño antes de guardarlos y una lectura podría sobrescribirlos.
+    const handleBackgroundUpdated = () => {
+      syncLocalBackground();
+    };
+
+    // El evento storage se emite en otras pestañas del mismo dominio.
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === STORAGE_BACKGROUND_KEY || event.key === null) {
+        handleBackgroundUpdated();
+      }
+    };
+
+    window.addEventListener('nl_background_updated', handleBackgroundUpdated);
+    window.addEventListener('storage', handleStorage);
+
+    // Al iniciar, siempre revisar el fondo vigente en Atlas.
+    void loadOfficialBackground();
+
     return () => {
-      window.removeEventListener('nl_background_updated', syncBackground);
-      window.removeEventListener('storage', syncBackground);
+      mounted = false;
+      latestRequest += 1;
+      window.removeEventListener('nl_background_updated', handleBackgroundUpdated);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
