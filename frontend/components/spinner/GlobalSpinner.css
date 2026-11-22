@@ -1,3 +1,4 @@
+
 /* Pantalla de carga global: clases NL aisladas para no alterar los estilos del sitio. */
 .nl-spinner-overlay {
   position: fixed;
@@ -6,7 +7,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #000;
+  background: transparent;
   color: #fff;
   padding: 24px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
@@ -50,6 +51,7 @@
   margin-bottom: 24px;
   text-align: center;
   text-decoration: none;
+  text-shadow: 0 1px 3px rgba(0,0,0,.95), 0 0 5px rgba(0,0,0,.55);
   overflow-wrap: anywhere;
 }
 .nl-spinner-brand span { color: #3a9bd5; }
@@ -62,7 +64,8 @@
   height: 14px;
   border: 1px solid #555;
   border-radius: 2px;
-  background: #111;
+  background: rgba(17,17,17,.83);
+  box-shadow: 0 1px 4px rgba(0,0,0,.55);
   overflow: hidden;
 }
 
@@ -82,6 +85,7 @@
   color: #cbd3e5;
   font-size: 11px;
   letter-spacing: .8px;
+  text-shadow: 0 1px 3px rgba(0,0,0,.95), 0 0 5px rgba(0,0,0,.55);
 }
 
 @keyframes nl-spinner-pane-pulse { from { opacity: .7; } to { opacity: 1; } }

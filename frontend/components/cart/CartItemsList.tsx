@@ -1,9 +1,11 @@
 import React from 'react';
+import { getProductPricing } from '../../services/productPresentation';
 import { Link } from 'react-router-dom';
 import { ShoppingBag, Minus, Plus, Trash2 } from 'lucide-react';
 import { PixelIcon } from '../common/PixelIcon';
 import { CartItem } from '../../types';
 import { hasApparelSize } from './cartTypes';
+import { getStockForSize, normalizeStockSize } from '../../services/productStock';
 
 export interface CartItemsListProps {
   items: CartItem[];
@@ -73,21 +75,25 @@ export const CartItemsList: React.FC<CartItemsListProps> = ({
                 {hasApparelSize(item.product, item.selectedSize) && (
                   <div className="text-[11px] text-gray-600 mt-0.5">
                     <span>
-                      Talla: <strong className="text-gray-900">{item.selectedSize}</strong>
+                      Talla seleccionada: <strong className="text-blue-900">{item.selectedSize}</strong>
                     </span>
                   </div>
+                )}
+
+                {getStockForSize(item.product, item.selectedSize) <= 0 && (
+                  <p className="text-[10px] font-bold text-red-700">Esta talla está agotada; quítala del carrito o elige otra.</p>
                 )}
 
                 {/* Precio por unidad y Subtotal a su derecha */}
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-[11px] text-blue-900 font-bold">
-                    ${(item.product.salePrice ?? item.product.price).toLocaleString('es-CL')} c/u
+                    ${(getProductPricing(item.product).finalPrice).toLocaleString('es-CL')} c/u
                   </span>
                   <span className="text-gray-300 text-[11px]">|</span>
                   <span className="text-[11px] text-gray-700">
                     Subtotal:{' '}
                     <strong className="text-red-700 font-mono font-bold">
-                      ${((item.product.salePrice ?? item.product.price) * item.quantity).toLocaleString('es-CL')}
+                      ${((getProductPricing(item.product).finalPrice) * item.quantity).toLocaleString('es-CL')}
                     </strong>
                   </span>
                 </div>
@@ -128,7 +134,10 @@ export const CartItemsList: React.FC<CartItemsListProps> = ({
                   <button
                     type="button"
                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    className="winxp-qty-button group cursor-pointer"
+                    disabled={items.filter((other) => other.productId === item.productId &&
+                      normalizeStockSize(other.selectedSize) === normalizeStockSize(item.selectedSize))
+                      .reduce((units, other) => units + other.quantity, 0) >= getStockForSize(item.product, item.selectedSize)}
+                    className="winxp-qty-button group cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     title="Sumar prenda (+)"
                     aria-label="Sumar una prenda (+)"
                   >

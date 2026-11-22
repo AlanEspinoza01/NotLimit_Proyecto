@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
@@ -29,20 +30,20 @@ export const FeaturedCatalog: React.FC<FeaturedCatalogProps> = ({
 
   return (
     <WindowFrame
-      title="CATALOGO_DESTACADOS.EXE - [Colección Drop Actual]"
-      subtitle="Filtrado por inventario físico en tiempo real"
+      title="Productos Destacados"
+      subtitle="Selección de productos destacados de la tienda"
       icon={<PixelIcon name="badge-gold" size={16} />}
-      statusBarText={`PRENDAS DESTACADAS: ${displayedProducts.length} // RETIRO INMEDIATO EN SUCURSALES`}
+      statusBarText={`PRODUCTOS DESTACADOS: ${displayedProducts.length}`}
     >
       <div>
         {/* Cabecera del Catálogo */}
         <div className="featured-catalog-xp-header">
           <div>
             <h2 className="featured-catalog-xp-title">
-              Prendas Exclusivas del Drop de Temporada
+              Productos Destacados
             </h2>
             <p className="text-xs text-gray-600 mt-0.5 font-sans">
-              Piezas limitadas y serigrafía artesanal listas para despacho nacional o retiro en tienda.
+              Productos seleccionados por la tienda, sujetos a disponibilidad de stock.
             </p>
           </div>
 
@@ -58,7 +59,12 @@ export const FeaturedCatalog: React.FC<FeaturedCatalogProps> = ({
           </Link>
         </div>
 
-        {/* Grilla de Productos (Hasta 8 prendas) */}
+        {/* Solo se muestran productos con categoría especial «Productos destacados». */}
+        {displayedProducts.length === 0 && (
+          <p className="p-5 text-center text-xs text-gray-600">
+            Por ahora no hay productos destacados. Puedes explorar el catálogo completo.
+          </p>
+        )}
         <div className="featured-catalog-xp-grid">
           {displayedProducts.map((product) => {
             const currentStock =

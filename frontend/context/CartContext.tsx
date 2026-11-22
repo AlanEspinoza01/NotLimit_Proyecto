@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { CartItem, Product, ProductColor } from '../types';
+import { getProductPricing } from '../services/productPresentation';
+import { getStockForSize, normalizeStockSize } from '../services/productStock';
 import { getProductWeightGrams, getWeightTierInfo } from '../services/shippingQuotesEngine';
 import {
   RedeemedUserCoupon,
@@ -73,23 +75,33 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     branchId?: string,
     quantity: number = 1
   ) => {
+    if (!Number.isSafeInteger(quantity) || quantity < 1) return;
+    const stock = getStockForSize(product, size);
+    if (stock < quantity) return;
     setItems(prevItems => {
+      // Todas las líneas del mismo producto+talla comparten el mismo stock,
+      // incluso cuando se eligieron distintos colores o sucursales.
+      const usedForSize = prevItems
+        .filter(item => item.productId === product.id && normalizeStockSize(item.selectedSize) === normalizeStockSize(size))
+        .reduce((units, item) => units + item.quantity, 0);
+      if (usedForSize + quantity > stock) return prevItems;
       const existingIndex = prevItems.findIndex(
         item =>
           item.productId === product.id &&
-          item.selectedSize === size &&
+          normalizeStockSize(item.selectedSize) === normalizeStockSize(size) &&
           item.selectedColor.name === color.name &&
           item.pickupBranchId === branchId
       );
 
-      const price = product.salePrice ?? product.price;
-      const originalPrice = product.price;
-      const discountUnit = originalPrice - price;
+      const pricing = getProductPricing(product);
+      const price = pricing.finalPrice;
+      const discountUnit = pricing.basePrice - price;
 
       if (existingIndex > -1) {
-        const updated = [...prevItems];
-        updated[existingIndex].quantity += quantity;
-        return updated;
+        if (prevItems[existingIndex].quantity + quantity > stock) return prevItems;
+        return prevItems.map((item, index) =>
+          index === existingIndex ? { ...item, quantity: item.quantity + quantity } : item
+        );
       } else {
         const newItem: CartItem = {
           id: `cart_${product.id}_${size}_${color.name}_${Date.now()}`,
@@ -116,7 +128,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     setItems(prev =>
-      prev.map(item => (item.id === itemId ? { ...item, quantity } : item))
+      prev.map(item => {
+        if (item.id !== itemId) return item;
+        const stock = getStockForSize(item.product, item.selectedSize);
+        const otherUnits = prev
+          .filter(other => other.id !== item.id && other.productId === item.productId &&
+            normalizeStockSize(other.selectedSize) === normalizeStockSize(item.selectedSize))
+          .reduce((units, other) => units + other.quantity, 0);
+        return quantity + otherUnits <= stock ? { ...item, quantity } : item;
+      })
     );
   };
 

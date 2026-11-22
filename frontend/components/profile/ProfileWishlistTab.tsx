@@ -1,8 +1,10 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { PixelHeart } from '../common/PixelIcon';
 import { Product } from '../../types';
+import { getProductPricing } from '../../services/productPresentation';
 
 interface ProfileWishlistTabProps {
   wishlist: Product[];
@@ -52,12 +54,9 @@ export const ProfileWishlistTab: React.FC<ProfileWishlistTabProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {wishlist.map((item) => {
             const isSoldOut = item.totalStock <= 0;
-            const discountPercent =
-              item.discountPercent ||
-              (item.salePrice && item.salePrice < item.price
-                ? Math.round(((item.price - item.salePrice) / item.price) * 100)
-                : null);
-            const hasDiscount = Boolean(discountPercent);
+            // El precio se calcula igual que en el catálogo y el carrito. No usar
+            // salePrice ?? price: salePrice puede ser 0 cuando no hay oferta.
+            const pricing = getProductPricing(item);
 
             return (
               <div
@@ -71,12 +70,12 @@ export const ProfileWishlistTab: React.FC<ProfileWishlistTabProps> = ({
                       alt={item.title}
                       className="w-full h-full object-cover"
                     />
-                    {hasDiscount && !isSoldOut && (
+                    {pricing.hasDiscount && !isSoldOut && (
                       <span
                         className="absolute top-1.5 left-1.5 bg-[#15803d] font-bold text-[10px] px-1.5 py-0.5 rounded-xs border border-[#166534] shadow-xs select-none z-10 !text-white"
                         style={{ color: '#ffffff', backgroundColor: '#15803d' }}
                       >
-                        -{discountPercent}% OFF
+                        -{pricing.discountPercent}% OFF
                       </span>
                     )}
                     {isSoldOut && (
@@ -96,11 +95,11 @@ export const ProfileWishlistTab: React.FC<ProfileWishlistTabProps> = ({
                     </h5>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="font-bold text-xs text-red-700">
-                        ${(item.salePrice ?? item.price).toLocaleString('es-CL')} CLP
+                        ${pricing.finalPrice.toLocaleString('es-CL')} CLP
                       </span>
-                      {item.salePrice && (
+                      {pricing.hasDiscount && (
                         <span className="text-[10px] text-gray-500 line-through">
-                          ${item.price.toLocaleString('es-CL')}
+                          ${pricing.basePrice.toLocaleString('es-CL')}
                         </span>
                       )}
                     </div>

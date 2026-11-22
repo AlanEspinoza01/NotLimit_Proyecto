@@ -1,4 +1,5 @@
 import { Product } from '../../types';
+import { isRealSize } from '../../services/productStock';
 
 export const PHONE_PREFIX_OPTIONS = [
   { value: '+56 9', label: '+56 9 (Chile Móvil)' },
@@ -33,12 +34,10 @@ export const isApparelCategory = (categoryName?: string): boolean => {
 };
 
 // Determinar si una prenda debe mostrar talla (excluye cadenas, bolsos, accesorios sin tallas)
-export const hasApparelSize = (product: Product, size?: string): boolean => {
-  if (!product.sizes || product.sizes.length === 0) return false;
-  if (!isApparelCategory(product.category)) return false;
-  if (!size || size === 'Única' || size === 'Sin Talla') return false;
-  return true;
-};
+// La talla elegida se muestra siempre que sea real, independientemente de la categoría.
+// «Ropa Superior» no identifica por sí sola si la prenda es una camisa o polera.
+export const hasApparelSize = (_product: Product, size?: string): boolean =>
+  isRealSize(size);
 
 // Función para dar formato automático al RUT chileno con puntos y guion:
 // - Acepta dígitos (0-9) y letra 'k' o 'K' como dígito verificador al final

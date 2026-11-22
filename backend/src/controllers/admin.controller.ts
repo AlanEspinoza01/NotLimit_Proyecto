@@ -12,11 +12,12 @@ import {
   SystemAlertModel  
 } from '../models';
 import { cloudinary } from '../config/cloudinary';
+import { ApiError } from '../utils/ApiError';
 
 // Función auxiliar para normalizar productos (sincroniza title/name y sizeBreakdown/sizes/sizeStock)
 // - sizeBreakdown: arreglo de objetos [{ id, size, quantity, stock }]
 // - sizes: arreglo de strings ["M (Chile/EUR) - 38-40 (USA)"] para evitar [object Object] en la tabla
-const normalizeProductPayload = (rawData: any) => {  
+const normalizeProductPayload = (rawData: any, validateForWrite = false) => {  
   const data = { ...rawData };
 
   // 1. Sincronizar title y name
@@ -24,14 +25,29 @@ const normalizeProductPayload = (rawData: any) => {
   data.title = effectiveTitle;
   data.name = effectiveTitle;
 
-  // Sincronizar price y normalPrice
-  const effectivePrice = Number(data.price ?? data.normalPrice ?? 0) || 0;
-  const effectiveNormalPrice = Number(data.normalPrice ?? data.price ?? effectivePrice) || effectivePrice;
+  // Precio y descuento se validan y calculan en el backend; salePrice del navegador se ignora.
+  const rawPrice = Number(data.price ?? data.normalPrice ?? 0);
+  const rawPercent = Number(data.discountPercent ?? 0);
+  if (validateForWrite && (!Number.isSafeInteger(rawPrice) || rawPrice <= 0)) {
+    throw new ApiError(400, 'El precio del producto debe ser un entero positivo en CLP');
+  }
+  if (validateForWrite && (!Number.isFinite(rawPercent) || rawPercent < 0 || rawPercent > 100)) {
+    throw new ApiError(400, 'El descuento debe estar entre 0 y 100');
+  }
+  // Los productos históricos se pueden leer aunque tengan datos incompletos;
+  // el alta y edición sí exigen un precio correcto.
+  const effectivePrice = Number.isFinite(rawPrice) && rawPrice >= 0 ? rawPrice : 0;
+  const percent = Number.isFinite(rawPercent) && rawPercent >= 0 && rawPercent <= 100 ? rawPercent : 0;
   data.price = effectivePrice;
-  data.normalPrice = effectiveNormalPrice;
-  // Precio de oferta calculado por el servidor para el catálogo y el carrito.
-  const percent = Math.max(0, Math.min(100, Number(data.discountPercent || 0)));
-  data.salePrice = Math.round(effectivePrice * (1 - percent / 100));
+  data.normalPrice = effectivePrice;
+  data.discountPercent = percent;
+  // Sin descuento persistimos cero; un precio de oferta jamás queda obsoleto.
+  data.salePrice = percent > 0 ? Math.round(effectivePrice * (1 - percent / 100)) : 0;
+
+  // Categoría especial: vacío significa ninguna. «Ninguna» es solo la etiqueta de la interfaz.
+  const allowedSpecial = ['Productos destacados', 'Live Drop', 'Producto Personalizado'];
+  const chosenSpecial = String(data.specialCategory ?? '').trim();
+  data.specialCategory = allowedSpecial.includes(chosenSpecial) ? chosenSpecial : '';
 
   // 2. Obtener desglose de tallas desde sizeBreakdown o sizeStock (o sizes si venía como objetos)
   const rawBreakdown =
@@ -408,7 +424,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     delete productData.existingImages;
 
     // Normalizar title/name y sizeBreakdown/sizes antes de guardar en MongoDB
-    productData = normalizeProductPayload(productData);
+    productData = normalizeProductPayload(productData, true);
 
     const newProduct = await ProductModel.create(productData);
 
@@ -539,9 +555,11 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
 
     // Una edición rápida de stock no debe sobrescribir el descuento actual.
     if (updateData.discountPercent === undefined) updateData.discountPercent = currentProduct.discountPercent || 0;
+    // Una actualización parcial de inventario no debe borrar la categoría especial vigente.
+    if (updateData.specialCategory === undefined) updateData.specialCategory = currentProduct.specialCategory || '';
 
     // Normalizar title/name y sizeBreakdown/sizes antes de actualizar en MongoDB
-    updateData = normalizeProductPayload(updateData);
+    updateData = normalizeProductPayload(updateData, true);
 
     const updatedProduct = await ProductModel.findByIdAndUpdate(
       id,

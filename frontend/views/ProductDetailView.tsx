@@ -24,6 +24,8 @@ import { SoldOutDetailBanner } from '../components/common/SoldOutState';
 import { ProductReviewsSection } from '../components/product/ProductReviewsSection';
 import { Product } from '../types';
 import api from '../api/axios';
+import { getProductPricing } from '../services/productPresentation';
+import { getProductSizesWithStock, getStockForSize, isProductOutOfStock, normalizeStockSize } from '../services/productStock';
 import '../components/home/ProductCard/ProductCard.css';
 
 export const ProductDetailView: React.FC = () => {
@@ -36,9 +38,11 @@ export const ProductDetailView: React.FC = () => {
 
   // Estado sincronizado en tiempo real desde la colección 'products' de MongoDB
   const [mongoProductList, setMongoProductList] = useState<Product[]>([]);
+  const [stockLookupState, setStockLookupState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   useEffect(() => {
     let isMounted = true;
+    setStockLookupState('loading');
     api
       .get('/products')
       .then((res) => {
@@ -52,10 +56,14 @@ export const ProductDetailView: React.FC = () => {
             })
           );
           setMongoProductList(normalizedList);
+          setStockLookupState('ready');
           localStorage.setItem('nolimits_products_catalog_v2', JSON.stringify(normalizedList));
         }
       })
-      .catch((err) => console.error('Error sincronizando detalle de producto desde MongoDB:', err));
+      .catch((err) => {
+        console.error('Error sincronizando detalle de producto desde MongoDB:', err);
+        if (isMounted) setStockLookupState('error');
+      });
     return () => {
       isMounted = false;
     };
@@ -130,7 +138,7 @@ export const ProductDetailView: React.FC = () => {
       : foundProduct?.stockPerBranch || { vina_del_mar: computedTotalStock, valparaiso: 0, quilpue: 0 }
   };
 
-  const { addToCart } = useCart();
+  const { addToCart, items: cartItems } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { isAuthenticated } = useAuth();
   const isWishlisted = isInWishlist(product.id);
@@ -139,10 +147,18 @@ export const ProductDetailView: React.FC = () => {
   const [showAuthRequiredModal, setShowAuthRequiredModal] = useState(false);
 
   const hasSizeOption = productRequiresSizeSelection(product);
-  const isSoldOut = product.totalStock <= 0;
+  // Solo la respuesta actual de MongoDB permite habilitar compras.
+  // Un producto de caché o del estado de navegación NO verifica inventario.
+  const isStockVerified = stockLookupState === 'ready' && mongoProductList.some(
+    (p) => p.id === product.id || (p.sku && p.sku.toLowerCase() === (id || '').toLowerCase())
+  );
+  const sizeOptions = getProductSizesWithStock(product);
+  const isSoldOut = isStockVerified && isProductOutOfStock(product);
+  const pricing = getProductPricing(product);
 
+  // Si S está agotada, el selector empieza en la primera talla con unidades.
   const initialSize = hasSizeOption
-    ? product.sizes?.[0] || 'M (Chile/EUR) - 38-40 (USA)'
+    ? sizeOptions.find((opt) => opt.stock > 0)?.size || ''
     : 'Única';
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -153,41 +169,25 @@ export const ProductDetailView: React.FC = () => {
   const [addedAlert, setAddedAlert] = useState(false);
   const prevProductIdRef = useRef(product.id);
 
-  // useLayoutEffect se ejecuta sincrónicamente ANTES de que el navegador pinte el frame
+  // Al cambiar de producto restablecer la foto, el color y la primera talla válida.
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-
     if (prevProductIdRef.current !== product.id) {
       prevProductIdRef.current = product.id;
       setActiveImageIndex(0);
-      setSelectedSize(
-        hasSizeOption
-          ? product.sizes?.[0] || 'M (Chile/EUR) - 38-40 (USA)'
-          : 'Única'
-      );
-      setSelectedColor(product.colors?.[0] || { name: 'Void Black', hex: '#000000' });
-    }
-  }, [id, product.id, hasSizeOption, product.sizes, product.colors]);
-
-  // useLayoutEffect se ejecuta sincrónicamente ANTES de que el navegador pinte el frame
-  useLayoutEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-
-    if (prevProductIdRef.current !== product.id) {
-      prevProductIdRef.current = product.id;
-      setActiveImageIndex(0);
-      setSelectedSize(
-        hasSizeOption
-          ? product.sizes[0] || 'M (Chile/EUR) - 38-40 (USA)'
-          : 'Única'
-      );
+      setSelectedSize(initialSize);
       setSelectedColor(product.colors[0] || { name: 'Void Black', hex: '#000000' });
     }
-  }, [id, product.id, hasSizeOption, product.sizes, product.colors]);
+  }, [product.id, id]);
+
+  // Al recibir stock actualizado, una talla previamente elegida puede estar agotada.
+  useEffect(() => {
+    if (!isStockVerified || !hasSizeOption) return;
+    if (getStockForSize(product, selectedSize) > 0) return;
+    setSelectedSize(sizeOptions.find((option) => option.stock > 0)?.size || '');
+  }, [isStockVerified, mongoProductList, id, hasSizeOption]);
 
   const productReviews = useMemo(
     () =>
@@ -198,8 +198,13 @@ export const ProductDetailView: React.FC = () => {
   );
 
   const handleAddToCart = () => {
-    if (isSoldOut) return;
-    addToCart(product, hasSizeOption ? selectedSize : 'Talla estándar', selectedColor, undefined, 1);
+    if (!isStockVerified || isSoldOut) return;
+    const chosenSize = hasSizeOption ? selectedSize : 'Única';
+    const available = getStockForSize(product, chosenSize);
+    const inCart = cartItems.filter((item) => item.productId === product.id && normalizeStockSize(item.selectedSize) === normalizeStockSize(chosenSize))
+      .reduce((total, item) => total + item.quantity, 0);
+    if (!chosenSize || available <= inCart) return;
+    addToCart(product, chosenSize, selectedColor, undefined, 1);
     setAddedAlert(true);
     setTimeout(() => setAddedAlert(false), 3000);
   };
@@ -274,7 +279,7 @@ export const ProductDetailView: React.FC = () => {
               </button>
 
               {/* Etiqueta de descuento oficial sobre la imagen */}
-              {product.discountPercent && !isSoldOut && (
+              {pricing.hasDiscount && !isSoldOut && (
                 <span
                   className="product-card-xp-discount product-detail-discount-badge"
                   style={{
@@ -293,7 +298,7 @@ export const ProductDetailView: React.FC = () => {
                     zIndex: 10,
                   }}
                 >
-                  -{product.discountPercent}% OFF
+                  -{pricing.discountPercent}% OFF
                 </span>
               )}
 
@@ -353,14 +358,14 @@ export const ProductDetailView: React.FC = () => {
               {/* Precios con descuento al lado derecho del precio original tachado */}
               <div className="flex items-center flex-wrap gap-2 mt-1">
                 <span className="text-sm font-bold text-red-700">
-                  ${(product.salePrice ?? product.price).toLocaleString('es-CL')} CLP
+                  ${pricing.finalPrice.toLocaleString('es-CL')} CLP
                 </span>
-                {product.salePrice && (
+                {pricing.hasDiscount && (
                   <span className="text-xs text-gray-500 line-through font-normal">
                     ${product.price.toLocaleString('es-CL')}
                   </span>
                 )}
-                {product.discountPercent && (
+                {pricing.hasDiscount && (
                   <span
                     className="product-detail-discount-badge font-bold text-[11px] px-2 py-0.5 rounded-xs shadow-xs tracking-wider border"
                     style={{
@@ -369,7 +374,7 @@ export const ProductDetailView: React.FC = () => {
                       color: '#ffffff',
                     }}
                   >
-                    -{product.discountPercent}% OFF
+                    -{pricing.discountPercent}% OFF
                   </span>
                 )}
               </div>
@@ -435,20 +440,42 @@ export const ProductDetailView: React.FC = () => {
                       Seleccionar Talla Disponible:
                     </label>
                     <div className="flex flex-wrap gap-1.5">
-                      {product.sizes.map((s: string) => (
+                      {sizeOptions.map(({ size, stock }) => (
                         <button
-                          key={s}
+                          key={size}
                           type="button"
-                          onClick={() => setSelectedSize(s)}
-                          className={`winxp-button text-xs py-1 px-3 cursor-pointer ${
-                            selectedSize === s ? 'winxp-button-primary bg-blue-100 font-bold' : ''
+                          disabled={!isStockVerified || stock <= 0}
+                          aria-label={`${size}: ${stock <= 0 ? 'Agotada' : `${stock} unidades`}`}
+                          title={stock <= 0 ? 'Talla agotada' : `${stock} unidades disponibles`}
+                          onClick={() => setSelectedSize(size)}
+                          className={`winxp-button text-xs py-1 px-3 ${
+                            !isStockVerified || stock <= 0
+                              ? 'opacity-50 bg-gray-200 text-gray-500 cursor-not-allowed'
+                              : selectedSize === size
+                              ? 'winxp-button-primary bg-blue-100 font-bold'
+                              : 'cursor-pointer'
                           }`}
                         >
-                          {s}
+                          {size}{stock <= 0 ? ' — Agotada' : ` (${stock} un.)`}
                         </button>
                       ))}
                     </div>
                   </div>
+                )}
+
+                {stockLookupState === 'loading' && (
+                  <p className="text-xs text-blue-800">Consultando disponibilidad en inventario...</p>
+                )}
+                {stockLookupState === 'error' && (
+                  <p className="text-xs text-red-700" role="alert">No se pudo consultar el inventario. No es posible agregar productos hasta actualizar la página.</p>
+                )}
+                {stockLookupState === 'ready' && !isStockVerified && (
+                  <p className="text-xs text-red-700" role="alert">Este producto no está disponible en el catálogo vigente.</p>
+                )}
+                {isStockVerified && hasSizeOption && selectedSize &&
+                  cartItems.filter((item) => item.productId === product.id && normalizeStockSize(item.selectedSize) === normalizeStockSize(selectedSize))
+                    .reduce((total, item) => total + item.quantity, 0) >= getStockForSize(product, selectedSize) && (
+                  <p className="text-xs text-amber-700">Ya tienes todas las unidades disponibles de esta talla en el carrito.</p>
                 )}
 
                 {/* Botón de Agregar al Carrito y Botón de un Corazón (Lista de Deseos) */}
@@ -457,7 +484,10 @@ export const ProductDetailView: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleAddToCart}
-                      className="winxp-button winxp-button-primary text-sm py-2 px-5 flex-1 font-bold text-blue-900 shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                      disabled={!isStockVerified || isSoldOut || (hasSizeOption && (!selectedSize || getStockForSize(product, selectedSize) <= 0)) ||
+                        cartItems.filter((item) => item.productId === product.id && normalizeStockSize(item.selectedSize) === normalizeStockSize(hasSizeOption ? selectedSize : 'Única'))
+                          .reduce((total, item) => total + item.quantity, 0) >= getStockForSize(product, hasSizeOption ? selectedSize : 'Única')}
+                      className="winxp-button winxp-button-primary disabled:opacity-45 disabled:cursor-not-allowed text-sm py-2 px-5 flex-1 font-bold text-blue-900 shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <PixelIcon name="cart" size={16} />
                       <span>AÑADIR AL CARRITO</span>

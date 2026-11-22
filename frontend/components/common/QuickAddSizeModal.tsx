@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Check, Info, Sparkles, Tag } from 'lucide-react';
 import { Product } from '../../types';
 import { PixelIcon } from './PixelIcon';
+import { getProductPricing } from '../../services/productPresentation';
+import { getProductSizesWithStock, getStockForSize, isProductOutOfStock } from '../../services/productStock';
 
 export interface ProductWithSizeStock extends Product {
   stockBySize?: Record<string, number>;
@@ -79,48 +81,11 @@ export function productRequiresSizeSelection(product: Product): boolean {
  */
 export function getSelectableSizesForProduct(
   product: ProductWithSizeStock
-): Array<{ size: string; displayLabel: string; stock?: number }> {
-  const rawSizes = (product.sizes || []).filter((sz) => {
-    const clean = sz.toLowerCase().trim();
-    return (
-      clean !== '' &&
-      clean !== 'única' &&
-      clean !== 'unica' &&
-      clean !== 'sin talla' &&
-      clean !== 'talla estándar' &&
-      clean !== 'talla estandar'
-    );
-  });
-
-  const effectiveSizes =
-    rawSizes.length > 0
-      ? rawSizes
-      : [
-          'S (Chile/EUR) - 34-36 (USA)',
-          'M (Chile/EUR) - 38-40 (USA)',
-          'L (Chile/EUR) - 42-44 (USA)',
-          'XL (Chile/EUR) - 46-48 (USA)'
-        ];
-
-  const stockMap: Record<string, number> = {};
-  if (product.stockBySize && Object.keys(product.stockBySize).length > 0) {
-    Object.entries(product.stockBySize).forEach(([k, v]) => {
-      stockMap[k] = v;
-    });
-  } else if (product.sizeBreakdown && product.sizeBreakdown.length > 0) {
-    product.sizeBreakdown.forEach((item) => {
-      stockMap[item.size] = item.quantity;
-    });
-  }
-
-  return effectiveSizes.map((size) => {
-    const stock = stockMap[size] !== undefined ? stockMap[size] : undefined;
-    return {
-      size,
-      displayLabel: size,
-      stock
-    };
-  });
+): Array<{ size: string; displayLabel: string; stock: number }> {
+  // Nunca mostramos una talla como disponible si no hay cantidades verificables.
+  return getProductSizesWithStock(product).map(({ size, stock }) => ({
+    size, displayLabel: size, stock
+  }));
 }
 
 interface QuickAddSizeModalProps {
@@ -140,8 +105,8 @@ export const QuickAddSizeModal: React.FC<QuickAddSizeModalProps> = ({
   useEffect(() => {
     if (product) {
       const options = getSelectableSizesForProduct(product);
-      const firstAvailable = options.find((opt) => opt.stock === undefined || opt.stock > 0);
-      setSelectedSize(firstAvailable ? firstAvailable.size : options[0]?.size || '');
+      const firstAvailable = options.find((opt) => opt.stock > 0);
+      setSelectedSize(firstAvailable?.size || '');
       setErrorMsg(null);
     }
   }, [product]);
@@ -149,11 +114,13 @@ export const QuickAddSizeModal: React.FC<QuickAddSizeModalProps> = ({
   if (!product) return null;
 
   const sizeOptions = getSelectableSizesForProduct(product);
-  const finalPrice = product.salePrice ?? product.price;
+  // El precio final se calcula desde el precio normal y el porcentaje persistido.
+  // salePrice: 0 indica ausencia de oferta; no debe convertirse en un precio $0.
+  const pricing = getProductPricing(product);
 
   const handleConfirm = () => {
-    if (!selectedSize) {
-      setErrorMsg('Por favor selecciona una talla antes de agregar al carrito.');
+    if (!selectedSize || isProductOutOfStock(product) || getStockForSize(product, selectedSize) <= 0) {
+      setErrorMsg('Selecciona una talla disponible. Las tallas agotadas no se pueden comprar.');
       return;
     }
     onConfirmSize(product, selectedSize);
@@ -207,11 +174,11 @@ export const QuickAddSizeModal: React.FC<QuickAddSizeModalProps> = ({
               </h4>
               <div className="flex items-center gap-2 pt-0.5">
                 <span className="font-extrabold text-red-700 text-sm">
-                  ${finalPrice.toLocaleString('es-CL')} CLP
+                  ${pricing.finalPrice.toLocaleString('es-CL')} CLP
                 </span>
-                {product.salePrice && (
+                {pricing.hasDiscount && (
                   <span className="text-[11px] text-gray-400 line-through">
-                    ${product.price.toLocaleString('es-CL')}
+                    ${pricing.basePrice.toLocaleString('es-CL')}
                   </span>
                 )}
               </div>
@@ -242,7 +209,7 @@ export const QuickAddSizeModal: React.FC<QuickAddSizeModalProps> = ({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 bg-white border border-gray-300 winxp-bevel-in">
               {sizeOptions.map((opt) => {
                 const isSelected = selectedSize === opt.size;
-                const isOutOfStock = opt.stock !== undefined && opt.stock <= 0;
+                const isOutOfStock = opt.stock <= 0;
 
                 return (
                   <button
@@ -261,7 +228,7 @@ export const QuickAddSizeModal: React.FC<QuickAddSizeModalProps> = ({
                         : 'bg-white text-gray-800 hover:bg-blue-50'
                     }`}
                   >
-                    <span className="font-bold leading-tight">{opt.displayLabel}</span>
+                    <span className="font-bold leading-tight">{opt.displayLabel}{isOutOfStock ? " · Agotada" : ` · ${opt.stock} un.`}</span>
                   </button>
                 );
               })}
@@ -284,7 +251,7 @@ export const QuickAddSizeModal: React.FC<QuickAddSizeModalProps> = ({
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={!selectedSize}
+              disabled={!selectedSize || getStockForSize(product, selectedSize) <= 0}
               className="winxp-button winxp-button-primary text-xs py-1.5 px-4 font-bold text-blue-900 flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Check className="w-3.5 h-3.5 text-green-700 stroke-[2.5]" />

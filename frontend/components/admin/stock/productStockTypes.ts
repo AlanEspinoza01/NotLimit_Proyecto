@@ -1,8 +1,9 @@
+
 import { INITIAL_PRODUCTS } from '../../../services/mockData';
 import { Product } from '../../../types';
+import { getProductPricing, normalizeSpecialCategory } from '../../../services/productPresentation';
 import {
   PRODUCT_TAXONOMY,
-  SPECIAL_CATEGORIES,
   SIZES_ZAPATILLAS,
   SIZES_VESTUARIO_HOMBRE,
   SIZES_VESTUARIO_MUJER,
@@ -171,18 +172,16 @@ export function normalizeProductToCurrentTaxonomy<T extends Product>(product: T)
   let section = product.section || '';
   let category = product.category || '';
   let subCategory = product.subCategory || '';
-  let specialCategory =
-    product.specialCategory ||
-    (product.isExclusive ? 'Live Drop' : product.isFeatured ? 'Productos destacados' : 'Ninguna');
-
-  // Validar Categoría Especial contra el esquema oficial
-  if (!SPECIAL_CATEGORIES.some((sc) => sc.value === specialCategory)) {
-    specialCategory = product.isExclusive
-      ? 'Live Drop'
-      : product.isFeatured
-      ? 'Productos destacados'
-      : 'Ninguna';
-  }
+  // Solo specialCategory define la sección especial, nunca una etiqueta ni un flag heredado.
+  const specialCategory = normalizeSpecialCategory(product.specialCategory);
+  const pricing = getProductPricing(product);
+  const normalizedFlags = {
+    specialCategory: specialCategory || 'Ninguna', // etiqueta legible del formulario
+    isFeatured: specialCategory === 'Productos destacados',
+    isExclusive: specialCategory === 'Live Drop',
+    discountPercent: pricing.discountPercent,
+    salePrice: pricing.hasDiscount ? pricing.finalPrice : undefined,
+  };
 
   // Verificar si ya cumple exactamente con PRODUCT_TAXONOMY
   const existingSectionObj = PRODUCT_TAXONOMY.find(
@@ -205,7 +204,7 @@ export function normalizeProductToCurrentTaxonomy<T extends Product>(product: T)
           section: resolvedSec,
           category: resolvedCat,
           subCategory: resolvedSub,
-          specialCategory
+          ...normalizedFlags
         },
         resolvedSec,
         resolvedCat,
@@ -330,7 +329,7 @@ export function normalizeProductToCurrentTaxonomy<T extends Product>(product: T)
       section,
       category,
       subCategory,
-      specialCategory
+      ...normalizedFlags
     },
     section,
     category,
@@ -439,7 +438,7 @@ export function loadAndSyncProductsStock(): ProductStockDetail[] {
           section: catalogMatch.section || item.section,
           category: catalogMatch.category || item.category,
           subCategory: catalogMatch.subCategory || item.subCategory,
-          specialCategory: catalogMatch.specialCategory || item.specialCategory
+          specialCategory: catalogMatch.specialCategory ?? item.specialCategory
         }
       : item;
 

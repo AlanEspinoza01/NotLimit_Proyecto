@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { getStockForSize, isProductOutOfStock } from '../services/productStock';
 import { useCart } from '../context/CartContext';
 import { useBranch } from '../context/BranchContext';
 import { Product } from '../types';
@@ -18,6 +19,7 @@ import {
   productRequiresSizeSelection
 } from '../components/common/QuickAddSizeModal';
 import api from '../api/axios';
+import { isFeaturedProduct } from '../services/productPresentation';
 
 /* =========================================================================
    Componentes Windows XP Design System
@@ -99,13 +101,15 @@ export const HomeView: React.FC = () => {
 
   const featuredProducts = useMemo(() => {
     return syncedProducts
-      .filter((product) => !product.isHidden && isProductTaxonomyActive(product, visibilityConfig))
+      .filter((product) => !product.isHidden && isFeaturedProduct(product) && isProductTaxonomyActive(product, visibilityConfig))
       .slice(0, 8);
   }, [syncedProducts, visibilityConfig]);
 
   const handleQuickAdd = (product: Product) => {
     const detailedProd =
       syncedProducts.find((p) => p.id === product.id) || (product as ProductStockDetail);
+
+    if (isProductOutOfStock(detailedProd)) return;
 
     if (productRequiresSizeSelection(detailedProd)) {
       setQuickAddModalProduct(detailedProd);
@@ -124,6 +128,7 @@ export const HomeView: React.FC = () => {
   };
 
   const handleConfirmQuickAddSize = (product: ProductWithSizeStock, chosenSize: string) => {
+    if (getStockForSize(product, chosenSize) <= 0) return;
     addToCart(
       product,
       chosenSize,
@@ -251,5 +256,3 @@ export const HomeView: React.FC = () => {
     </div>
   );
 };
-
-

@@ -19,33 +19,11 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useBranch, formatBranchPickupSummary } from '../context/BranchContext';
 import { PixelIcon } from '../components/common/PixelIcon';
-import { CheckoutCustomerData, Product, PaymentMethodType } from '../types';
+import { CheckoutCustomerData, PaymentMethodType } from '../types';
 import { calculateCourierQuotes, getWeightTierInfo } from '../services/shippingQuotesEngine';
 import api from '../api/axios';
-
-const isApparelCategory = (categoryName?: string) => {
-  if (!categoryName) return false;
-  const c = categoryName.toLowerCase();
-  return (
-    c.includes('poleron') ||
-    c.includes('hoodie') ||
-    c.includes('chaqueta') ||
-    c.includes('pantalon') ||
-    c.includes('pantalón') ||
-    c.includes('cargo') ||
-    c.includes('polera') ||
-    c.includes('top') ||
-    c.includes('zapatilla') ||
-    c.includes('calzado')
-  );
-};
-
-const hasApparelSize = (product: Product, size?: string) => {
-  if (!product.sizes || product.sizes.length === 0) return false;
-  if (!isApparelCategory(product.category)) return false;
-  if (!size || size === 'all') return false;
-  return true;
-};
+import { getProductPricing } from '../services/productPresentation';
+import { getProductSizesWithStock, isRealSize } from '../services/productStock';
 
 export const CheckoutView: React.FC = () => {
   const {
@@ -189,6 +167,18 @@ const handleStartWebpay = async () => {
     setCheckoutError('Por ahora solo Webpay Plus está integrado. Los otros medios no pueden confirmar una venta.');
     return;
   }
+  // Una prenda con tallas no puede pagarse sin haber elegido una talla válida.
+  // También protege carritos antiguos guardados antes de incorporar este control.
+  const itemWithoutSize = items.find((item) =>
+    getProductSizesWithStock(item.product).length > 0 && !isRealSize(item.selectedSize)
+  );
+  if (itemWithoutSize) {
+    setCheckoutError(
+      `Selecciona la talla de «${itemWithoutSize.product.title}» en el carrito antes de pagar.`
+    );
+    return;
+  }
+
   if (isProcessing) return;
   setIsProcessing(true);
   setCheckoutError(null);
@@ -478,8 +468,9 @@ const handleStartWebpay = async () => {
                       >
                         {item.product.title}
                       </Link>
+                      {/* Confirmación de talla y cantidad visibles antes de iniciar Webpay. */}
                       <div className="text-[11px] text-gray-600 flex items-center gap-2 mt-0.5">
-                        {hasApparelSize(item.product, item.selectedSize) && (
+                        {isRealSize(item.selectedSize) && (
                           <>
                             <span>
                               Talla: <strong className="text-gray-900">{item.selectedSize}</strong>
@@ -496,12 +487,12 @@ const handleStartWebpay = async () => {
                         </span>
                       </div>
                       <div className="text-[11px] text-gray-700 font-mono mt-0.5">
-                        ${(item.product.salePrice ?? item.product.price).toLocaleString('es-CL')} c/u
+                        ${getProductPricing(item.product).finalPrice.toLocaleString('es-CL')} c/u
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="font-bold text-red-700 text-xs font-mono">
-                        ${((item.product.salePrice ?? item.product.price) * item.quantity).toLocaleString('es-CL')}
+                        ${(getProductPricing(item.product).finalPrice * item.quantity).toLocaleString('es-CL')}
                       </div>
                     </div>
                   </div>

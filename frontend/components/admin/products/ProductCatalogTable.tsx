@@ -1,3 +1,4 @@
+
 import React from 'react';
 import {
   Trash2,
@@ -9,6 +10,7 @@ import {
   Boxes
 } from 'lucide-react';
 import { Product } from '../../../types';
+import { getProductPricing, normalizeSpecialCategory } from '../../../services/productPresentation';
 import { SectionTaxonomy, formatCLP } from './productManagerTypes';
 
 interface ProductCatalogTableProps {
@@ -170,14 +172,10 @@ export const ProductCatalogTable: React.FC<ProductCatalogTableProps> = ({
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredAndSortedProducts.map((prod) => {
-                const hasDiscount =
-                  Boolean(prod.discountPercent && prod.discountPercent > 0) ||
-                  Boolean(prod.salePrice && prod.salePrice < prod.price);
-                const discountVal =
-                  prod.discountPercent ||
-                  (prod.salePrice ? Math.round(((prod.price - prod.salePrice) / prod.price) * 100) : 0);
-                const offerPrice =
-                  prod.salePrice || (hasDiscount ? Math.round(prod.price * (1 - discountVal / 100)) : prod.price);
+                const pricing = getProductPricing(prod);
+                const hasDiscount = pricing.hasDiscount;
+                const discountVal = pricing.discountPercent;
+                const offerPrice = pricing.finalPrice;
                 const isCurrentlyEditing = editingProductId === prod.id;
 
                 return (
@@ -226,9 +224,9 @@ export const ProductCatalogTable: React.FC<ProductCatalogTableProps> = ({
                       <div className="font-semibold text-gray-800">
                         {prod.section ? `${prod.section} › ` : ''}{prod.category}{prod.subCategory ? ` › ${prod.subCategory}` : ''}
                       </div>
-                      {(prod.specialCategory || prod.isFeatured || prod.isExclusive) && (
+                      {Boolean(normalizeSpecialCategory(prod.specialCategory)) && (
                         <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.2 bg-amber-100 text-amber-900 border border-amber-400">
-                          ⭐ {prod.specialCategory || (prod.isFeatured ? 'Productos destacados' : 'Live Drop')}
+                          ⭐ {normalizeSpecialCategory(prod.specialCategory)}
                         </span>
                       )}
                     </td>

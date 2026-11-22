@@ -3,8 +3,11 @@ import { Link } from 'react-router-dom';
 import { Ticket, AlertCircle, ArrowRight } from 'lucide-react';
 import { RedeemedUserCoupon } from '../../services/couponsService';
 import { ShippingQuoteOption } from '../../services/shippingQuotesEngine';
+import type { CartItem } from '../../types';
+import { isRealSize } from '../../services/productStock';
 
 export interface CartOrderSummaryProps {
+  items: CartItem[];
   appliedCoupon: RedeemedUserCoupon | null;
   removeCoupon: () => void;
   couponInput: string;
@@ -24,9 +27,11 @@ export interface CartOrderSummaryProps {
   finalTotal: number;
   errorMessage: string;
   handleProceedToPayment: () => void;
+  isCheckingStock: boolean;
 }
 
 export const CartOrderSummary: React.FC<CartOrderSummaryProps> = ({
+  items,
   appliedCoupon,
   removeCoupon,
   couponInput,
@@ -45,13 +50,30 @@ export const CartOrderSummary: React.FC<CartOrderSummaryProps> = ({
   currentShippingCost,
   finalTotal,
   errorMessage,
-  handleProceedToPayment
+  handleProceedToPayment,
+  isCheckingStock
 }) => {
   return (
     <div className="bg-[#f8fafc] border border-gray-400 p-3 space-y-3 winxp-bevel-out">
       <h3 className="font-bold text-xs text-blue-900 pb-1.5 border-b border-gray-300">
         RESUMEN DE COMPRA
       </h3>
+
+      {/* Confirmación de lo que se comprará antes de abandonar el carrito. */}
+      <div className="bg-white border border-blue-300 p-2.5 text-xs space-y-1" aria-label="Resumen de productos y tallas elegidas">
+        <p className="font-bold text-blue-900">Confirma tus prendas y tallas</p>
+        {items.map((item) => (
+          <div key={item.id} className="flex justify-between gap-2 text-gray-800 border-t border-gray-100 pt-1">
+            <span className="min-w-0 break-words">
+              {item.product.title}
+              {isRealSize(item.selectedSize) && (
+                <strong className="text-blue-900"> · Talla: {item.selectedSize}</strong>
+              )}
+            </span>
+            <span className="shrink-0">× {item.quantity}</span>
+          </div>
+        ))}
+      </div>
 
       {/* Módulo de Cupón de Descuento Canjeado (Código Único de 1 Solo Uso) */}
       <div className="bg-purple-50/70 border border-purple-300 p-2.5 space-y-2 text-xs">
@@ -213,14 +235,15 @@ export const CartOrderSummary: React.FC<CartOrderSummaryProps> = ({
         </div>
       )}
 
-      {/* BOTÓN REQUERIDO: "Proceder con el Pago" */}
+      {/* Botón de pago: comprueba stock vigente antes de avanzar. */}
       <div>
         <button
           type="button"
           onClick={handleProceedToPayment}
+          disabled={isCheckingStock}
           className="winxp-button winxp-button-primary text-xs py-2.5 w-full font-bold text-blue-900 shadow-md flex items-center justify-center gap-2 cursor-pointer hover:bg-blue-100 transition-colors"
         >
-          <span className="tracking-wide">Proceder con el Pago</span>
+          <span className="tracking-wide">{isCheckingStock ? 'Verificando stock...' : 'Proceder con el Pago'}</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

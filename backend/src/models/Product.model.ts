@@ -1,3 +1,4 @@
+
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ISizeItem {
@@ -60,7 +61,7 @@ const ProductSchema = new Schema<IProduct>(
     category: { type: String, required: true, trim: true },
     subcategory: { type: String, default: 'General', trim: true },
     subCategory: { type: String, default: 'General', trim: true },
-    specialCategory: { type: String, default: 'Ninguna', trim: true },
+    specialCategory: { type: String, default: '', trim: true, enum: ['', 'Productos destacados', 'Live Drop', 'Producto Personalizado'] },
     tags: { type: [String], default: [] },
     images: { type: [String], default: [] },
     sizeBreakdown: { type: [SizeItemSchema], default: [] },

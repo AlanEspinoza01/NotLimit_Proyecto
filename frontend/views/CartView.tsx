@@ -35,6 +35,9 @@ import { CartOrderSummary } from '../components/cart/CartOrderSummary';
 import { CartCustomerStep1 } from '../components/cart/CartCustomerStep1';
 import { CartDeliveryStep2 } from '../components/cart/CartDeliveryStep2';
 import { CartPickupScheduleModal } from '../components/cart/CartPickupScheduleModal';
+import api from '../api/axios';
+import { getStockForSize, isRealSize, normalizeStockSize } from '../services/productStock';
+import type { Product } from '../types';
 import '../components/cart/CartView.css';
 
 export {
@@ -177,6 +180,7 @@ export const CartView: React.FC = () => {
 
   const [emailError, setEmailError] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isCheckingStock, setIsCheckingStock] = useState(false);
 
   // Sincronizar con usuario si cambia de cuenta
   useEffect(() => {
@@ -468,7 +472,8 @@ export const CartView: React.FC = () => {
 
   const finalTotal = Math.max(0, subtotal - discount + currentShippingCost);
 
-  const handleProceedToPayment = () => {
+  const handleProceedToPayment = async () => {
+    if (isCheckingStock) return;
     setErrorMessage('');
     setEmailError('');
 
@@ -532,6 +537,50 @@ export const CartView: React.FC = () => {
         );
         return;
       }
+    }
+
+    // Última comprobación de tallas y cantidades desde MongoDB antes de avanzar.
+    // El stock del carrito es solo una copia local y puede haber cambiado.
+    setIsCheckingStock(true);
+    try {
+      const response = await api.get('/products');
+      if (!response.data?.success || !Array.isArray(response.data.data)) {
+        throw new Error('Inventario temporalmente no disponible');
+      }
+      const liveProducts = new Map<string, Product>(
+        response.data.data.map((doc: Product & { _id?: string }): [string, Product] => [
+          String(doc._id || doc.id), doc
+        ])
+      );
+      const requestedUnits = new Map<string, number>();
+      for (const item of items) {
+        const product = liveProducts.get(String(item.productId));
+        if (!product || product.isHidden) {
+          setErrorMessage(`El producto "${item.product.title}" ya no está disponible. Retíralo del carrito.`);
+          return;
+        }
+        const size = item.selectedSize;
+        const hasRealSizes = Array.isArray(product.sizeBreakdown) &&
+          product.sizeBreakdown.some((entry) => isRealSize(entry.size));
+        if (hasRealSizes && !isRealSize(size)) {
+          setErrorMessage(`Vuelve a seleccionar la talla del producto "${item.product.title}".`);
+          return;
+        }
+        const key = `${item.productId}::${normalizeStockSize(size)}`;
+        const totalRequested = (requestedUnits.get(key) || 0) + item.quantity;
+        requestedUnits.set(key, totalRequested);
+        const available = getStockForSize(product, size);
+        if (available < totalRequested) {
+          setErrorMessage(`Stock insuficiente de "${item.product.title}" — talla ${size}. Disponibles: ${available}; en tu carrito: ${totalRequested}. Ajusta la cantidad o cambia de talla.`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('No fue posible consultar el inventario antes de pagar:', error);
+      setErrorMessage('No pudimos comprobar el stock actualizado. Inténtalo de nuevo antes de continuar al pago.');
+      return;
+    } finally {
+      setIsCheckingStock(false);
     }
 
     const finalNumberStr = shippingNoNumber ? 'S/N' : shippingNumber.trim();
@@ -604,6 +653,7 @@ export const CartView: React.FC = () => {
           <div className="nl-cart-right-col lg:col-span-5 space-y-4">
             {/* 1. Resumen de Compra */}
             <CartOrderSummary
+              items={items}
               appliedCoupon={appliedCoupon}
               removeCoupon={removeCoupon}
               couponInput={couponInput}
@@ -623,6 +673,7 @@ export const CartView: React.FC = () => {
               finalTotal={finalTotal}
               errorMessage={errorMessage}
               handleProceedToPayment={handleProceedToPayment}
+              isCheckingStock={isCheckingStock}
             />
 
             {/* 2. Paso 1: Datos del Titular de la Compra */}

@@ -1,9 +1,11 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { INITIAL_PRODUCTS } from '../../services/mockData';
 import { Product } from '../../types';
 import { WindowFrame } from '../../components/layout/WindowFrame';
 import { PixelIcon } from '../../components/common/PixelIcon';
-import api from '../../api/axios'; // <--- AÑADE ESTA LÍNEA AQUÍ
+import api from '../../api/axios';
+import { normalizeSpecialCategory, getProductPricing } from '../../services/productPresentation';
 
 import '../../components/admin/products/ProductManagerView.css';
 import {
@@ -117,14 +119,14 @@ export const ProductManagerView: React.FC = () => {
   const [description, setDescription] = useState('');
   const [normalPriceRaw, setNormalPriceRaw] = useState<number>(45990);
   const [normalPriceInput, setNormalPriceInput] = useState<string>('45.990');
-  const [discountPercent, setDiscountPercent] = useState<number | ''>(15);
+  const [discountPercent, setDiscountPercent] = useState<number | ''>(0);
   const [weightGrams, setWeightGrams] = useState<number | ''>(850);
 
   // Taxonomía: Sección, Categoría, Subcategoría y Categoría Especial
   const [section, setSection] = useState<string>('Hombre');
   const [category, setCategory] = useState<string>('Ropa Superior');
   const [subcategory, setSubcategory] = useState<string>('Poleras');
-  const [specialCategory, setSpecialCategory] = useState<string>('Productos destacados');
+  const [specialCategory, setSpecialCategory] = useState<string>('Ninguna');
 
   // Etiquetas dinámicas
   const [tagInput, setTagInput] = useState('');
@@ -454,7 +456,7 @@ export const ProductManagerView: React.FC = () => {
     setSection('Hombre');
     setCategory('Ropa Superior');
     setSubcategory('Poleras');
-    setSpecialCategory('Productos destacados');
+    setSpecialCategory('Ninguna');
     setTags(['Y2K Cyber', 'NoLimits']);
     setSizesList([
       { id: '1', size: 'M (Chile/EUR) - 38-40 (USA)', quantity: 5 },
@@ -487,8 +489,8 @@ export const ProductManagerView: React.FC = () => {
       return;
     }
 
-    const effectiveDiscount = typeof discountPercent === 'number' && discountPercent > 0 ? discountPercent : undefined;
-    const effectiveSalePrice = effectiveDiscount ? calculatedOfferPrice : undefined;
+    // Enviar el porcentaje incluso si vale 0: permite retirar promociones anteriores.
+    const effectiveDiscount = typeof discountPercent === 'number' ? discountPercent : 0;
 
     const formattedSizes = categorySupportsSizes ? sizesList.map((s) => s.size) : ['Única'];
     const formattedSizeBreakdown = categorySupportsSizes
@@ -501,14 +503,15 @@ export const ProductManagerView: React.FC = () => {
     formData.append('title', title.trim());
     formData.append('description', description.trim() || `Prenda No Limits Y2K Cyberpunk con alta calidad. Sección: ${section}, Categoría: ${category}.`);
     formData.append('price', normalPriceRaw.toString());
-    if (effectiveSalePrice) formData.append('salePrice', effectiveSalePrice.toString());
-    if (effectiveDiscount) formData.append('discountPercent', effectiveDiscount.toString());
+    formData.append('normalPrice', normalPriceRaw.toString());
+    // El backend recalcula salePrice, impidiendo diferencias entre catálogo y Webpay.
+    formData.append('discountPercent', effectiveDiscount.toString());
     formData.append('section', section);
     formData.append('category', category);
     formData.append('subCategory', subcategory);
     formData.append('totalStock', (totalUnits || 1).toString());
     if (typeof weightGrams === 'number') formData.append('weightGrams', weightGrams.toString());
-    if (specialCategory !== 'Ninguna') formData.append('specialCategory', specialCategory);
+    formData.append('specialCategory', normalizeSpecialCategory(specialCategory));
     formData.append('isFeatured', String(specialCategory === 'Productos destacados'));
     formData.append('isExclusive', String(specialCategory === 'Live Drop'));
     formData.append('isHidden', 'false');
@@ -572,7 +575,7 @@ export const ProductManagerView: React.FC = () => {
     setDescription(prod.description || '');
     setNormalPriceRaw(prod.price);
     setNormalPriceInput(prod.price.toLocaleString('es-CL'));
-    setDiscountPercent(prod.discountPercent || (prod.salePrice ? Math.round(((prod.price - prod.salePrice) / prod.price) * 100) : 0));
+    setDiscountPercent(getProductPricing(prod).discountPercent);
     setWeightGrams(prod.weightGrams || 500);
 
     // Deducir sección, categoría y subcategoría
@@ -603,10 +606,7 @@ export const ProductManagerView: React.FC = () => {
     setCategory(matchedCategory);
     setSubcategory(matchedSubcategory);
 
-    setSpecialCategory(
-      prod.specialCategory ||
-      (prod.isFeatured ? 'Productos destacados' : prod.isExclusive ? 'Live Drop' : 'Ninguna')
-    );
+    setSpecialCategory(normalizeSpecialCategory(prod.specialCategory) || 'Ninguna');
     setTags(prod.tags && prod.tags.length > 0 ? prod.tags : ['Y2K']);
 
     // Tallas

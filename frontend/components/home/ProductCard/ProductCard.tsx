@@ -2,6 +2,8 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Check, Info, XCircle } from 'lucide-react';
 import { Product } from '../../../types';
+import { getProductPricing } from '../../../services/productPresentation';
+import { isProductOutOfStock } from '../../../services/productStock';
 import { PixelIcon, PixelHeart } from '../../common/PixelIcon';
 import { SoldOutCardOverlay } from '../../common/SoldOutState';
 import { useWishlist } from '../../../context/WishlistContext';
@@ -32,7 +34,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onQuickAdd,
   onWishlistToggle,
 }) => {
-  const isSoldOut = currentStock <= 0;
+  const isSoldOut = currentStock <= 0 || isProductOutOfStock(product);
+  const pricing = getProductPricing(product);
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { isAuthenticated } = useAuth();
   const isWishlisted = isInWishlist(product.id);
@@ -67,9 +70,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {/* Overlay oficial de Agotado */}
           {isSoldOut && <SoldOutCardOverlay />}
 
-          {product.discountPercent && !isSoldOut && (
+          {pricing.hasDiscount && !isSoldOut && (
             <span className="product-card-xp-discount z-10">
-              -{product.discountPercent}% OFF
+              -{pricing.discountPercent}% OFF
             </span>
           )}
         </Link>
@@ -134,9 +137,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         {/* Precios en moneda chilena */}
         <div>
           <span className={`product-card-xp-price ${isSoldOut ? 'text-gray-600' : ''}`}>
-            ${(product.salePrice ?? product.price).toLocaleString('es-CL')}
+            ${pricing.finalPrice.toLocaleString('es-CL')}
           </span>
-          {product.salePrice && (
+          {pricing.hasDiscount && (
             <span className="product-card-xp-oldprice">
               ${product.price.toLocaleString('es-CL')}
             </span>

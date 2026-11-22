@@ -3,6 +3,9 @@ import {calculateCourierQuotes,getProductWeightGrams} from './shippingQuotesEngi
 import type {ClientSession,Types} from 'mongoose';
 export interface Line {productId:Types.ObjectId; sku:string; name:string; size:string; price:number;quantity:number;weightGrams:number}
 const clean=(s:unknown)=>String(s||'').trim();
+// No sustituir una talla real por otra cuando exista un solo tamaño registrado.
+const sizeKey=(s:unknown)=>clean(s).replace(/\s+\(\d+\)\s*$/, '').toLocaleLowerCase('es-CL');
+const uniqueSizeNames=new Set(['única','unica','talla única','talla unica','talla estándar','talla estandar','sin talla']);
 export async function quoteCheckout(data:any,session:ClientSession){
  const incoming=Array.isArray(data.items)?data.items:[];
  if(incoming.length===0||incoming.length>40)throw new Error('El carrito está vacío o contiene demasiados productos');
@@ -24,11 +27,17 @@ export async function quoteCheckout(data:any,session:ClientSession){
   if(price<1)throw new Error('Una compra totalmente descontada requiere un flujo especial sin Webpay');
   let size=item.size;
   if(product.sizeBreakdown?.length){
-    const found=product.sizeBreakdown.find((s:any)=>clean(s.size).toLowerCase()===size.toLowerCase());
-    if(!found){if(product.sizeBreakdown.length===1)size=product.sizeBreakdown[0].size;
-      else throw new Error('La talla solicitada ya no está disponible');}
-    const valid=product.sizeBreakdown.find((s:any)=>s.size===size);
-    if(Number(valid?.quantity||0)<item.quantity)throw new Error('Stock insuficiente en la talla seleccionada');
+    // Comparación exacta de la talla: S no puede convertirse en M, ni siquiera si queda una sola talla.
+    const requestedSize=sizeKey(size);
+    const found=product.sizeBreakdown.find((s:any)=>sizeKey(s.size)===requestedSize);
+    // Compatibilidad únicamente entre nombres de talla única (sin talla de vestuario).
+    const singleUnique=product.sizeBreakdown.length===1 &&
+      uniqueSizeNames.has(sizeKey(product.sizeBreakdown[0].size)) && uniqueSizeNames.has(requestedSize)
+      ? product.sizeBreakdown[0] : null;
+    const chosen=found||singleUnique;
+    if(!chosen)throw new Error(`La talla seleccionada no está disponible: ${size}`);
+    size=chosen.size; // Persistir en la orden la talla exacta de MongoDB.
+    if(Number(chosen.quantity||0)<item.quantity)throw new Error(`Stock insuficiente para la talla ${size}`);
   }else if(Number(product.stock||0)<item.quantity)throw new Error('Stock insuficiente');
   const grams=getProductWeightGrams(product)*item.quantity;
   lines.push({productId:product._id,sku:product.sku,name:product.title,size,price,quantity:item.quantity,weightGrams:grams});

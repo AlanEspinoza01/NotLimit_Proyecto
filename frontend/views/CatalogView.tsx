@@ -44,6 +44,8 @@ import {
 } from '../components/common/QuickAddSizeModal';
 import { Product } from '../types';
 import api from '../api/axios';
+import { getProductPricing } from '../services/productPresentation';
+import { getStockForSize, isProductOutOfStock } from '../services/productStock';
 
 const renderSectionIcon = (section: string) => {
   const key = section.toLowerCase().trim();
@@ -455,7 +457,7 @@ export const CatalogView: React.FC = () => {
       }
 
       const isSale = Boolean(
-        (p.salePrice && p.salePrice < p.price) || (p.discountPercent && p.discountPercent > 0)
+        getProductPricing(p).hasDiscount
       );
       if (isSale && (selectedSection === 'all' || sec === selectedSection)) {
         saleCountsMap.all = (saleCountsMap.all || 0) + 1;
@@ -485,8 +487,7 @@ export const CatalogView: React.FC = () => {
         // 2. Filtro por Categoría o 'Ofertas'
         if (selectedCategory === 'Ofertas') {
           const isSale = Boolean(
-            (product.salePrice && product.salePrice < product.price) ||
-              (product.discountPercent && product.discountPercent > 0)
+            getProductPricing(product).hasDiscount
           );
           if (!isSale) return false;
 
@@ -538,8 +539,8 @@ export const CatalogView: React.FC = () => {
         return true;
       })
       .sort((a, b) => {
-        const priceA = a.salePrice ?? a.price;
-        const priceB = b.salePrice ?? b.price;
+        const priceA = getProductPricing(a).finalPrice;
+        const priceB = getProductPricing(b).finalPrice;
         if (sortBy === 'price_asc') return priceA - priceB;
         if (sortBy === 'price_desc') return priceB - priceA;
         if (sortBy === 'rating') return b.rating - a.rating;
@@ -561,6 +562,8 @@ export const CatalogView: React.FC = () => {
     const detailedProd =
       normalizedProducts.find((p) => p.id === product.id) || (product as ProductStockDetail);
 
+    if (isProductOutOfStock(detailedProd)) return;
+
     if (productRequiresSizeSelection(detailedProd)) {
       setQuickAddModalProduct(detailedProd);
       return;
@@ -579,6 +582,7 @@ export const CatalogView: React.FC = () => {
   };
 
   const handleConfirmQuickAddSize = (product: ProductWithSizeStock, chosenSize: string) => {
+    if (getStockForSize(product, chosenSize) <= 0) return;
     addToCart(
       product,
       chosenSize,
