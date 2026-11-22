@@ -4,6 +4,7 @@
  * Solo procesa texto efímero: NO almacena ni consulta información privada.
  */
 import { getClippySocialReply, type ClippySocialKind } from './clippy.empathy';
+import { parseProductRequest, type ClippyProductRequest } from './clippy.catalog';
 
 export interface ClippyTurn { role: string; text: string }
 export interface ClippyGuide {
@@ -14,6 +15,8 @@ export interface ClippyGuide {
   styleConsultation: boolean;
   // El servidor no enviará estados emocionales a Gemini ni ofrecerá productos.
   socialKind?: ClippySocialKind;
+  // Solicitud con filtros estrictos: la BD decide las tarjetas, no Gemini.
+  productRequest?: ClippyProductRequest;
 }
 
 // Quita tildes para interpretar variantes habituales del español chileno.
@@ -65,9 +68,8 @@ const introFor = (occasion: string | null): string => {
 export const createClippyGuide = (question: string, history: ClippyTurn[]): ClippyGuide => {
   // Solo tomamos mensajes previos del visitante, nunca instrucciones externas.
   const visitorHistory = history.filter((turn) => turn.role === 'user').map((turn) => turn.text.slice(0, 400));
-  const searchContext = [...visitorHistory, question].join(' ').slice(-1800);
+  let searchContext = question;
   const current = normalize(question);
-  const combined = normalize(searchContext);
   // Primero reconocemos el malestar; nunca lo convertimos en un turno de moda.
   const social = getClippySocialReply(question, history);
   if (social) {
@@ -76,15 +78,59 @@ export const createClippyGuide = (question: string, history: ClippyTurn[]): Clip
       recommendProducts: false, styleConsultation: false, socialKind: social.kind,
     };
   }
+  // Una solicitud de producto concreto siempre tiene prioridad sobre estilo,
+  // ocasión y preguntas anteriores. «Camisa blanca» no puede convertirse en «cita».
+  // Solo usamos la pregunta inmediatamente anterior para «¿Y en blanco?».
+  // No reactivamos una prenda solicitada muchos mensajes atrás.
+  const previousUserQuestion = visitorHistory[visitorHistory.length - 1];
+  const productRequest = parseProductRequest(question, previousUserQuestion);
+  if (productRequest) {
+    return {
+      answer: '', // La ruta construye la respuesta a partir del catálogo real.
+      suggestions: [], searchContext: question, recommendProducts: true,
+      styleConsultation: false, productRequest,
+    };
+  }
+
+  // Explicar los tipos de looks es diferente de afirmar que hay stock.
+  if (/\b(?:estilos|tendencias|que tipo de look|tipos de looks)\b/.test(current)
+    && /\b(?:hay|tienen|ofrecen|disponibles|manejan|recomiendas|son|puedes|conoces)\b/.test(current)) {
+    return {
+      answer: '¡Buena pregunta! 😎📎 Podemos explorar looks urbanos o streetwear, casuales, elegantes y estilos más atrevidos. También puedo ayudarte a combinar colores para una ocasión. Eso es asesoría de estilo: si quieres ver prendas concretas, revisaré cuáles están realmente disponibles en el catálogo. ¿Qué onda te tinca más?',
+      suggestions: ['Quiero un look urbano', 'Prefiero algo elegante', 'Algo casual y cómodo'],
+      searchContext: '', recommendProducts: false, styleConsultation: false,
+    };
+  }
+
+  if (/\b(?:colores|paletas|tonos)\b/.test(current)
+    && /\b(?:tienen|disponibles|hay|manejan|ofrecen)\b/.test(current)) {
+    return {
+      answer: '¡Podemos buscar por color! 🎨📎 Dime qué tono te gusta —blanco, negro, rosa, azul u otro— y qué prenda buscas. Te mostraré solo las coincidencias que aparezcan realmente en el catálogo, sin mezclar colores.',
+      suggestions: ['Poleras blancas', 'Camisas azules', 'Pantalones negros'],
+      searchContext: '', recommendProducts: false, styleConsultation: false,
+    };
+  }
+
   // Las preguntas sobre compras/tallas deben interrumpir el asesor de moda sin quedar 'atrapadas'.
   const directInfoIntent = /\b(talla|tallas|medida|medidas|envio|envios|despacho|despachos|compra|comprar|carrito|checkout|devolucion|devoluciones|garantia|stock|disponibilidad|agotado)\b/.test(current);
   const lastAssistant = [...history].reverse().find((turn) => turn.role === 'assistant');
   const answeringStyleQuestion = visitorHistory.length > 0 && question.length < 110
-    && Boolean(lastAssistant && /\b(estilo|paleta|colores)\b/.test(normalize(lastAssistant.text)));
+    && Boolean(lastAssistant && /(?:que estilo te gusta mas|que paleta te gustaria usar)/.test(normalize(lastAssistant.text)));
   const styleConsultation = !directInfoIntent && (STYLE_INTENT.test(current) || answeringStyleQuestion);
-  const occasion = occasionFrom(combined);
+  // Heredamos preferencias SOLO si respondemos a una pregunta concreta de estilo.
+  // Una consulta nueva no arrastra colores de una búsqueda de producto anterior.
+  if (answeringStyleQuestion) {
+    const styleTurns = visitorHistory.slice(-4).filter((text) =>
+      (STYLE_INTENT.test(normalize(text)) || styleFrom(normalize(text)) || paletteFrom(normalize(text)))
+      && !parseProductRequest(text)
+    );
+    searchContext = [...styleTurns, question].join(' ').slice(-1200);
+  }
+  const occasion = occasionFrom(normalize(searchContext));
   // Dar prioridad al mensaje más reciente permite que el usuario cambie de opinión.
-  const newestFirst = [question, ...[...visitorHistory].reverse()].map(normalize);
+  const newestFirst = answeringStyleQuestion
+    ? [question, ...visitorHistory.slice(-4).reverse()].map(normalize)
+    : [current];
   const style = newestFirst.map(styleFrom).find(Boolean) ?? null;
   const palette = newestFirst.map(paletteFrom).find(Boolean) ?? null;
 

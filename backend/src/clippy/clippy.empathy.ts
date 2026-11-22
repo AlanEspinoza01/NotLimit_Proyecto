@@ -7,7 +7,7 @@
  */
 import type { ClippyTurn } from './clippy.conversation';
 
-export type ClippySocialKind = 'encouragement' | 'urgent';
+export type ClippySocialKind = 'encouragement' | 'urgent' | 'celebration';
 export interface ClippySocialReply { kind: ClippySocialKind; answer: string }
 
 // Igualamos variantes del español (tildes, mayúsculas y espacios repetidos).
@@ -24,6 +24,8 @@ const IMMEDIATE_RISK = /\b(?:quiero (?:morir|matarme|suicidarme)|me quiero (?:mo
 const SADNESS = /\b(?:estoy|ando|me siento|sigo|he estado)\s+(?:muy\s+|super\s+|re\s+)?(?:triste|bajonead[oa]|desanimad[oa]|deprimid[oa]|decaid[oa]|mal|fatal|p[eé]simo|sin animo|sol[oa]|angustiad[oa])\b|\b(?:tengo (?:mucha )?pena|(?:hoy (?:fue|ha sido)|tuve) un dia (?:horrible|pesimo|terrible)|me siento (?:sin fuerzas|hech[oa] pedazos)|se me vino el mundo encima)\b/;
 const STRESS = /\b(?:estoy|ando|me siento)\s+(?:muy\s+|super\s+)?(?:estresad[oa]|frustrad[oa]|ansios[oa]|agotad[oa]|abrumad[oa]|preocupad[oa]|nervios[oa])\b|\b(?:todo me sale mal|no me resulta nada|estoy hasta el cuello|tuve un dia pesado)\b/;
 const INSECURITY = /\b(?:me siento|me veo)\s+(?:muy\s+)?(?:fe[oa]|horrible|insegur[oa])\b|\b(?:odio mi cuerpo|no me gusta mi cuerpo|me veo mal)\b/;
+// Alegría y emociones positivas también merecen respuesta, sin forzar una venta.
+const HAPPINESS = /\b(?:estoy|ando|me siento|hoy estoy|hoy me siento)\s+(?:muy\s+|super\s+|re\s+)?(?:feliz|alegre|content[oa]|emocionad[oa]|animad[oa]|bien|genial)\b|\b(?:que alegria|estoy de buen humor|me fue muy bien)\b/;
 const NEUTRAL_FOLLOWUP = /^(?:no se|no se que hacer|no tengo ganas|no tengo animo|sigo igual|igual mal|gracias|muchas gracias|eso|pucha|uf|bueno|ya|si|no)[.!\s]*$/;
 
 // No se utiliza para historiales médicos ni para deducir diagnósticos:
@@ -47,6 +49,12 @@ const INSECURITY_ANSWERS = [
   'Te mando un abrazo virtual. 🌼 No hace falta cumplir un ideal para tener estilo. Lo importante es que te sientas cómodo y auténtico, a tu ritmo. 💛',
 ] as const;
 
+const HAPPY_ANSWERS = [
+  '¡Qué buena onda! 😄📎 Me alegra saberlo. Ojalá esa energía bonita te acompañe el resto del día. ¡A disfrutarla!',
+  '¡Esooo! 🌸 Da gusto leerte con esa energía. Que sigan llegando motivos para sonreír. 📎',
+  '¡Bacán! 😎💛 A veces esos momentos alegres alegran toda la jornada. ¡Me encanta que estés así!',
+] as const;
+
 const FOLLOWUP_ANSWERS = [
   'Está bien no tener todas las respuestas ahora. 💛 Si el día se siente pesado, una pausa y un poquito de descanso también son una forma de cuidarte. Te mando ánimo. 📎',
   'Pucha, espero que pronto tengas un ratito más tranquilo. 🌷 Anda de a poco y, si lo necesitas, busca compañía en alguien de confianza. No tienes que cargar con todo de una vez. 💛',
@@ -61,11 +69,15 @@ export const isPersonalDistress = (text: string): boolean => {
   return IMMEDIATE_RISK.test(input) || SADNESS.test(input) || STRESS.test(input) || INSECURITY.test(input);
 };
 
+// No compartimos emociones positivas ni negativas de turnos previos con Gemini.
+export const isClippySocialMessage = (text: string): boolean =>
+  isPersonalDistress(text) || HAPPINESS.test(normalize(text));
+
 // Excluimos también nuestras frases de apoyo del contexto que podría ir a Gemini.
 // Así ni el malestar del visitante ni la respuesta local forman parte del prompt.
 const SOCIAL_ANSWERS: readonly string[] = [
   ...SAD_ANSWERS, ...STRESS_ANSWERS, ...INSECURITY_ANSWERS,
-  ...FOLLOWUP_ANSWERS, URGENT_ANSWER,
+  ...FOLLOWUP_ANSWERS, ...HAPPY_ANSWERS, URGENT_ANSWER,
 ];
 export const isClippySocialResponse = (text: string): boolean => SOCIAL_ANSWERS.includes(text);
 
@@ -98,6 +110,9 @@ export const getClippySocialReply = (question: string, history: ClippyTurn[]): C
   }
   if (SADNESS.test(current)) {
     return { kind: 'encouragement', answer: chooseDifferent(SAD_ANSWERS, history) };
+  }
+  if (HAPPINESS.test(current) && !/\b(?:no estoy|no me siento|pero|aunque|sin embargo)\b/.test(current)) {
+    return { kind: 'celebration', answer: chooseDifferent(HAPPY_ANSWERS, history) };
   }
   if (NEUTRAL_FOLLOWUP.test(current) && isPersonalDistress(previous)) {
     return { kind: 'encouragement', answer: chooseDifferent(FOLLOWUP_ANSWERS, history) };

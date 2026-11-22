@@ -5,56 +5,27 @@ import { DEFAULT_SETTINGS, getClippySettings, getPublicSettings } from './clippy
 import { allowGlobalAiCall, enforceClippyLimits, isSensitiveQuestion } from './clippy.security';
 import { askGemini } from './clippy.gemini';
 import { createClippyGuide } from './clippy.conversation';
-import { isClippySocialResponse, isPersonalDistress } from './clippy.empathy';
+import {
+  type CatalogDocument, type ClippyPublicProduct,
+  matchCatalogProducts, matchStyleProducts, buildCatalogReply,
+} from './clippy.catalog';
+import { isClippySocialResponse, isClippySocialMessage } from './clippy.empathy';
 
 export const clippyPublicRouter = Router();
 export const clippyAdminRouter = Router();
 
-// Campos de catálogo estrictamente públicos: jamás consulta Customer, User, Order, Supplier o Expense.
-const PUBLIC_FIELDS = 'title name description images price salePrice discountPercent totalStock stock sizeBreakdown section category subcategory tags isHidden';
-const safe = (text: unknown, max: number): string => String(text ?? '').trim().slice(0, max);
+// Campos públicos: no consultamos User, Order, Supplier ni Expense.
+const PUBLIC_FIELDS = 'title name description images price salePrice totalStock stock sizeBreakdown section category subcategory subCategory tags isHidden';
 
-const findOutfits = async (question: string) => {
-  const stopwords = new Set(['para', 'como', 'quiero', 'tengo', 'algo', 'ropa', 'usar', 'esta', 'estoy', 'color', 'colores', 'dame', 'puedo', 'puedes', 'hola', 'gracias', 'prenda', 'prendas', 'look', 'outfit', 'una', 'uno', 'unos', 'unas', 'con', 'sin', 'los', 'las', 'del', 'por', 'que', 'este', 'esto', 'sera', 'tienen', 'busco', 'necesito', 'ayuda', 'recomienda', 'usar', 'quiero', 'ocasion']);
-  const tokens = question.toLocaleLowerCase('es-CL')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/)
-    .filter((term) => term.length >= 3 && !stopwords.has(term));
-  const words = new Set(tokens);
-  const formal = /boda|formal|entrevista|oficina|graduacion|elegante|ceremonia|reunion/i.test(question);
-  const casual = /casual|universidad|diario|paseo|amigos|comodo|street|urbano/i.test(question);
-  // Los looks genéricos (cita, estilo, paleta) necesitan categorías de moda, no la palabra exacta "cita".
-  // Sin embargo, una búsqueda de prenda específica NO se rellena con productos arbitrarios.
-  const specificItem = /\b(?:busco|tienen|venden|necesito|hay|comprar)\b/i.test(question)
-    && /\b(?:vestido|chaqueta|falda|zapato|botin|zapatilla|polera|camisa|pantalon|gorra|jockey|cartera|mochila)\b/i.test(question);
-  const styleLook = /cita|outfit|look|estilo|combinar|vestir|paleta|negro|neutro|pastel|atrevido/i.test(question);
-  const prefer = specificItem ? [] : formal
-    ? ['camisa', 'pantalon', 'blazer', 'chaqueta', 'vestir']
-    : casual || styleLook ? ['polera', 'camisa', 'pantalon', 'jockey', 'hoodie'] : [];
-
-  const docs: any[] = await ProductModel.find({ isHidden: false }).select(PUBLIC_FIELDS).sort({ createdAt: -1 }).limit(150).lean();
-  const scored = docs.map((p: any) => {
-    const sizes = Array.isArray(p.sizeBreakdown) ? p.sizeBreakdown.filter((s: any) => Number(s.quantity ?? s.stock ?? 0) > 0).map((s: any) => String(s.size).slice(0, 35)) : [];
-    const stock = Number(p.totalStock ?? p.stock ?? 0);
-    if (!(stock > 0 || sizes.length > 0)) return null;
-    const haystack = [p.title, p.name, p.description?.slice(0, 360), p.section, p.category, p.subcategory, ...(Array.isArray(p.tags) ? p.tags : [])]
-      .join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    let rank = 0;
-    words.forEach((word) => { if (haystack.includes(word)) rank += 3; });
-    for (const word of prefer) if (haystack.includes(word)) rank += 2;
-    const price = Number(p.salePrice) > 0 ? Number(p.salePrice) : Number(p.price) || 0;
-    return { rank, item: {
-      id: String(p._id), title: safe(p.title || p.name, 110), category: safe(p.category, 65),
-      section: safe(p.section, 65), price,
-      imageUrl: typeof p.images?.[0] === 'string' && /^https:\/\//i.test(p.images[0]) ? p.images[0] : '',
-      sizes: sizes.slice(0, 8),
-      url: `/#/product/${String(p._id)}`,
-    } };
-  }).filter(Boolean) as Array<{ rank: number; item: any }>;
-  scored.sort((a, b) => b.rank - a.rank);
-  // Una búsqueda específica sin coincidencias no recomienda prendas arbitrarias.
-  const meaningfulQuery = words.size > 0 || formal || casual;
-  return scored.filter((p) => !meaningfulQuery || p.rank > 0).slice(0, 4).map((p) => p.item);
+// El catálogo puede crecer: revisamos las últimas 500 prendas públicas.
+// No se dice "no existe" si la búsqueda no encuentra un resultado en este conjunto.
+const loadPublicCatalog = async (): Promise<CatalogDocument[]> => {
+  const docs = await ProductModel.find({ isHidden: false })
+    .select(PUBLIC_FIELDS).sort({ updatedAt: -1 }).limit(500).lean();
+  return docs as CatalogDocument[];
 };
+
+const safe = (text: unknown, max: number): string => String(text ?? '').trim().slice(0, max);
 
 const contactLink = (phone: string): string => {
   const digits = phone.replace(/[^0-9]/g, '');
@@ -121,23 +92,36 @@ clippyPublicRouter.post('/ask', async (req: Request, res: Response) => {
       return;
     }
 
-    // El modo guiado pregunta gustos y paleta en lugar de cortar la conversación.
-    const products = guide.recommendProducts ? await findOutfits(guide.searchContext) : [];
-    let fallback = guide.answer;
-    if (guide.recommendProducts && products.length) {
-      fallback += ` ¡Mira estas ${products.length} opción(es) del catálogo! Revisa tallas y disponibilidad en cada ficha.`;
-    } else if (guide.recommendProducts && !products.length) {
-      fallback += ' No encontré prendas coincidentes disponibles ahora; si buscas algo específico, puedes consultarlo directamente con la tienda.';
+    // Solo consultamos productos cuando hay interés explícito en productos/looks.
+    // Una consulta sobre una prenda concreta se filtra por clase + color + sección,
+    // sin completar el resultado con artículos de otras categorías.
+    let products: ClippyPublicProduct[] = [];
+    if (guide.recommendProducts) {
+      const docs = await loadPublicCatalog();
+      products = guide.productRequest
+        ? matchCatalogProducts(docs, guide.productRequest)
+        : matchStyleProducts(docs, guide.searchContext);
+    }
+
+    let fallback = guide.productRequest
+      ? buildCatalogReply(guide.productRequest, products)
+      : guide.answer;
+    if (!guide.productRequest && guide.recommendProducts && products.length) {
+      fallback += ` Te dejo ${products.length} opción(es) disponibles que podrían combinar con la idea; revisa los detalles de cada una.`;
+    } else if (!guide.productRequest && guide.recommendProducts && !products.length) {
+      fallback += ' No encontré coincidencias disponibles para esa combinación entre las prendas revisadas; puedes consultar a la tienda por alternativas.';
     }
 
     let answer = fallback;
     let suggestions = guide.suggestions;
     let mode: 'guide' | 'gemini' = 'guide';
-    if (req.body?.allowGemini === true && settings.aiEnabled && process.env.GEMINI_API_KEY
+    // Las preguntas con filtros concretos se responden desde MongoDB, nunca
+    // desde un texto de IA que pudiera inventar prendas, colores o disponibilidad.
+    if (!guide.productRequest && req.body?.allowGemini === true && settings.aiEnabled && process.env.GEMINI_API_KEY
       && await allowGlobalAiCall(settings.maxGlobalAiPerDay)) {
       try {
         // No se reenvían a Gemini expresiones emocionales de turnos anteriores.
-        const publicHistory = history.filter((turn: { role: string; text: string }) => !isPersonalDistress(turn.text) && !isClippySocialResponse(turn.text));
+        const publicHistory = history.filter((turn: { role: string; text: string }) => !isClippySocialMessage(turn.text) && !isClippySocialResponse(turn.text));
         const aiAnswer = await askGemini(question, products.map(({ title, section, category, price, sizes }) => ({ title, section, category, price, sizes })), settings, publicHistory);
         if (aiAnswer) { answer = aiAnswer; suggestions = []; mode = 'gemini'; }
       } catch {
@@ -146,7 +130,11 @@ clippyPublicRouter.post('/ask', async (req: Request, res: Response) => {
       }
     }
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ success: true, data: { answer, products, suggestions, mode, contactUrl: contactLink(settings.whatsappNumber) } });
+    // Mostramos WhatsApp solo cuando el usuario busca una prenda que no aparece
+    // o cuando pidió un look y no hay coincidencias en el catálogo revisado.
+    const contactUrl = guide.recommendProducts && !products.length
+      ? contactLink(settings.whatsappNumber) : '';
+    res.json({ success: true, data: { answer, products, suggestions, mode, contactUrl } });
   } catch (error) {
     console.error('[CLIPPY] Error procesando solicitud:', error instanceof Error ? error.name : 'unknown');
     res.status(503).json({ success: false, message: 'Clippy no está disponible por ahora.' });
