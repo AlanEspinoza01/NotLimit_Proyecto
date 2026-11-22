@@ -89,6 +89,7 @@ export interface UserPublishedReview {
   productImage: string;
   productSize?: string;
   orderNumber: string;
+  orderId?: string; // Identificador persistente de MongoDB de la compra verificada.
   rating: number;
   title: string;
   comment: string;
@@ -191,6 +192,7 @@ export interface PurchaseOrder {
     quantity: number;
     price: number;
     image: string;
+    isReviewed?: boolean; // Estado real del ítem en orders de MongoDB.
   }[];
   // Estados obligatorios según requerimiento
   currentStatus:

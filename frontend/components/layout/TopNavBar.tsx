@@ -13,12 +13,16 @@ import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { PixelIcon } from '../common/PixelIcon';
+import { resolveAccountNav } from './accountNav';
 
 export const TopNavBar: React.FC = () => {
-  const { currentRole, currentUser } = useAuth();
+  const { currentRole, currentUser, isAuthenticated } = useAuth();
   const { totalItems } = useCart();
   const { branches, activeBranchId, setActiveBranchId } = useBranch();
   const navigate = useNavigate();
+
+  // El contexto conserva un usuario invitado temporal: NO equivale a una sesión activa.
+  const accountNav = resolveAccountNav(isAuthenticated, currentUser);
 
   const physicalBranches = branches.filter((b) => !b.isCorporate && b.id !== 'casa_matriz');
 
@@ -132,11 +136,17 @@ export const TopNavBar: React.FC = () => {
             )}
           </Link>
 
-          {/* Botón Mi Cuenta */}
-          <Link to={currentUser ? "/profile" : "/auth"} className="winxp-button text-xs py-1 px-2 text-gray-800">
-            <UserIcon className="w-3.5 h-3.5 text-gray-700" />
-            <span className="hidden md:inline">
-              {!currentUser ? 'Iniciar Sesión' : currentUser.firstName}
+          {/* Acceso a la cuenta. GUEST_USER existe, pero no es una sesión autenticada. */}
+          <Link
+            to={accountNav.to}
+            className="winxp-button text-xs py-1 px-2 text-gray-800"
+            title={accountNav.title}
+            aria-label={accountNav.title}
+          >
+            {/* No depende de clases responsive ni de un firstName que podría faltar. */}
+            <UserIcon className="w-3.5 h-3.5 text-gray-700 shrink-0" />
+            <span className="whitespace-nowrap" style={{ display: 'inline-block' }}>
+              {accountNav.label}
             </span>
           </Link>
 

@@ -1,7 +1,4 @@
-
-import React, { useEffect, useMemo, useState } from 'react';
-import api from '../../api/axios';
-import { useAuth } from '../../context/AuthContext';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import {
   Package,
@@ -17,13 +14,15 @@ import {
 import {
   PurchaseOrder,
   ReturnRequest,
-  getReturnEligibility,
-  parseOrderDate
+  getReturnEligibility
 } from './profileTypes';
 import { ProductStockDetail } from '../../views/admin/ProductStockSummaryView';
 
 interface ProfileOrdersTabProps {
   orders: PurchaseOrder[];
+  ordersLoading: boolean;
+  ordersError: string;
+  onRetryOrders: () => void;
   filteredOrders: PurchaseOrder[];
   ordersFilter: 'all' | 'solicitud' | 'preparation_transit' | 'pickup' | 'delivered';
   setOrdersFilter: (filter: 'all' | 'solicitud' | 'preparation_transit' | 'pickup' | 'delivered') => void;
@@ -38,6 +37,10 @@ interface ProfileOrdersTabProps {
 
 export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
   orders,
+  filteredOrders,
+  ordersLoading,
+  ordersError,
+  onRetryOrders,
   ordersFilter,
   setOrdersFilter,
   ordersSort,
@@ -48,125 +51,9 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
   handleOpenOrderReturn,
   setRejectionModalReturn
 }) => {
-  // El componente lee las órdenes desde la API autenticada para no depender del
-  // localStorage anterior ni de precios reescritos con el catálogo vigente.
-  // ProfileView.tsx no figura en el TXT nuevo: evitamos reemplazarlo con una versión antigua.
-  const { currentUser, isLoading: isLoadingSession } = useAuth();
-  const [serverOrders, setServerOrders] = useState<PurchaseOrder[] | null>(null);
-  const [historyError, setHistoryError] = useState('');
-
-  const normalizeStep = (raw: unknown, payment: string): PurchaseOrder['currentStatus'] => {
-    if (payment === 'PENDING') return 'Pendiente de Pago';
-    if (payment === 'REJECTED') return 'Pago Anulado';
-    if (payment === 'REFUNDED') return 'Reembolsado';
-    const label = String(raw || '').toLowerCase().normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '').replace(/[_-]/g, ' ').trim();
-    if (label.includes('retirado') && !label.includes('listo')) return 'Retirado';
-    if (label.includes('entregado')) return 'Entregado';
-    if (label.includes('listo') && label.includes('retiro')) return 'Listo para el retiro de sucursal';
-    if (label.includes('transito')) return 'En transito';
-    if (label.includes('preparacion')) return 'En Preparación';
-    return 'Solicitud recibida';
-  };
-
-  useEffect(() => {
-    if (isLoadingSession) return;
-    if (!currentUser?.id || currentUser.role === 'guest') {
-      setServerOrders([]);
-      setHistoryError('');
-      return;
-    }
-    let active = true;
-    setServerOrders(null);
-    setHistoryError('');
-    void api.get('/orders/my-orders').then(({ data }) => {
-      if (!active) return;
-      if (!data?.success || !Array.isArray(data?.data)) throw new Error('Respuesta de órdenes inválida');
-      // Defensa adicional: aunque el servidor ya filtra, no exhibir intentos
-      // de pago pendientes, rechazados ni reembolsados en el historial.
-      const paidOrders = data.data.filter((o: any) => String(o.paymentStatus || '').toUpperCase() === 'CONFIRMED');
-      const mapped: PurchaseOrder[] = paidOrders.map((o: any) => {
-        const paymentStatus: PurchaseOrder['paymentStatus'] =
-          ['PENDING', 'CONFIRMED', 'REJECTED', 'REFUNDED'].includes(String(o.paymentStatus).toUpperCase())
-            ? String(o.paymentStatus).toUpperCase() as PurchaseOrder['paymentStatus']
-            : 'PENDING';
-        const timestamp = new Date(o.createdAt || o.date || 0).getTime();
-        const purchasedAt = Number.isFinite(timestamp) ? timestamp : 0;
-        const subtotal = Number(o.subtotal ?? o.total ?? 0) || 0;
-        const shippingCost = Number(o.shippingCost ?? 0) || 0;
-        const total = Number(o.total ?? 0) || 0;
-        const address = o.shippingDetails?.address;
-        const itemRows = Array.isArray(o.items) ? o.items : [];
-        return {
-          id: String(o._id || o.id || o.orderNumber),
-          orderNumber: String(o.orderNumber || 'Orden sin número'),
-          date: purchasedAt ? new Date(purchasedAt).toLocaleString('es-CL', {
-            day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-          }) : 'Fecha no registrada',
-          purchasedAt,
-          subtotal, shippingCost, total,
-          discountAmount: Math.max(0, subtotal + shippingCost - total),
-          paymentStatus,
-          paymentMethod: String(o.paymentMethod || 'No registrado'),
-          deliveryMethod: o.deliveryType === 'envio' ? 'shipping' : 'pickup',
-          branchId: String(o.pickupBranchId || o.branchId || ''),
-          branchName: String(o.branchName || o.pickupBranchId || 'Sucursal no indicada'),
-          courier: o.shippingDetails?.courier || undefined,
-          shippingAddress: address
-            ? [address.street, address.number, address.apartment, address.comuna, address.region].filter(Boolean).join(', ')
-            : undefined,
-          trackingNumber: o.shippingDetails?.trackingNumber || undefined,
-          // En una orden pagada, prevalece fulfillmentStatus. En una no pagada no
-          // se debe mostrar un pedido como ya preparado o entregado.
-          currentStatus: normalizeStep(
-            /solicitud[ _]recibida|preparaci[oó]n|[ _]transit[oó]|listo.*retiro|retirad|entregad/i.test(String(o.fulfillmentStatus || ''))
-              ? o.fulfillmentStatus : (o.status || o.fulfillmentStatus),
-            String(paymentStatus)
-          ),
-          items: itemRows.map((it: any) => {
-            const productId = String(it.productId || '');
-            const match = catalogProducts.find(product =>
-              product.id === productId || (it.sku && product.sku === it.sku)
-            );
-            return {
-              productId,
-              title: String(it.name || it.title || 'Producto'),
-              size: String(it.size || 'Única'),
-              color: match?.colors?.[0]?.name || '',
-              quantity: Number(it.quantity ?? 1) || 1,
-              // PRECIO CONGELADO DE LA ORDEN; no el precio actualizado del catálogo.
-              price: Number(it.price ?? it.unitPrice ?? 0) || 0,
-              image: match?.images?.[0] || '',
-              isReviewed: Boolean(it.isReviewed)
-            };
-          })
-        };
-      });
-      setServerOrders(mapped);
-    }).catch(() => {
-      if (active) {
-        setServerOrders([]);
-        setHistoryError('No se pudo cargar el historial desde MongoDB. Actualiza la página para volver a intentarlo.');
-      }
-    });
-    return () => { active = false; };
-  }, [currentUser?.id, currentUser?.role, isLoadingSession]);
-
-  const historyOrders = useMemo(() => {
-    const base = serverOrders || [];
-    const selected = base.filter(o => {
-      if (ordersFilter === 'solicitud') return o.currentStatus === 'Solicitud recibida';
-      if (ordersFilter === 'preparation_transit') return o.currentStatus === 'En Preparación' || o.currentStatus === 'En transito';
-      if (ordersFilter === 'pickup') return o.currentStatus === 'Listo para el retiro de sucursal';
-      if (ordersFilter === 'delivered') return o.currentStatus === 'Entregado' || o.currentStatus === 'Retirado';
-      return true;
-    });
-    return selected.sort((a, b) => {
-      const da = a.purchasedAt ?? parseOrderDate(a.date);
-      const db = b.purchasedAt ?? parseOrderDate(b.date);
-      return (ordersSort === 'oldest' ? da - db : db - da) || a.orderNumber.localeCompare(b.orderNumber);
-    });
-  }, [serverOrders, ordersFilter, ordersSort]);
+  // La lista es la misma que usa el sidebar y la pestaña Mis Reseñas.
+  // Se obtiene una sola vez desde MongoDB en ProfileView, sin mocks ni localStorage.
+  const historyOrders = filteredOrders;
 
   /**
    * Helper para obtener los pasos obligatorios según método de entrega
@@ -229,7 +116,7 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
             <span>Ver Horarios de Retiro</span>
           </button>
           <span className="text-xs font-bold text-gray-700 bg-gray-100 px-2 py-1 border border-gray-300">
-            {historyOrders.length} de {serverOrders?.length ?? 0} compras registradas
+            {historyOrders.length} de {orders.length} compras registradas
           </span>
         </div>
       </div>
@@ -246,7 +133,7 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
             }`}
           >
             <Package className="w-3 h-3 text-blue-700 shrink-0" />
-            <span>Todas ({serverOrders?.length ?? 0})</span>
+            <span>Todas ({orders.length})</span>
           </button>
           <button
             type="button"
@@ -317,10 +204,13 @@ export const ProfileOrdersTab: React.FC<ProfileOrdersTabProps> = ({
 
       {/* Listado de Órdenes */}
       <div className="space-y-4">
-        {serverOrders === null ? (
+        {ordersLoading ? (
           <div className="p-8 text-center text-gray-600 text-xs border border-gray-300">Cargando historial de compras desde MongoDB…</div>
-        ) : historyError ? (
-          <div role="alert" className="p-5 text-center text-red-800 text-xs border border-red-300 bg-red-50">{historyError}</div>
+        ) : ordersError ? (
+          <div role="alert" className="p-5 text-center text-red-800 text-xs border border-red-300 bg-red-50 space-y-2">
+            <p>{ordersError}</p>
+            <button type="button" onClick={onRetryOrders} className="winxp-button px-3 py-1">Reintentar</button>
+          </div>
         ) : historyOrders.length === 0 ? (
           <div className="p-8 text-center text-gray-500 text-xs border border-dashed border-gray-300 bg-gray-50">
             No se encontraron compras en esta categoría.

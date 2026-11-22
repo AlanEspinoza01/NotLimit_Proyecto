@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useBranch, getBranchScheduleBlocks, formatBranchPickupSummary } from '../context/BranchContext';
 import { PixelIcon } from '../components/common/PixelIcon';
-import { INITIAL_PRODUCTS } from '../services/mockData';
 import api from '../api/axios';
 import {
   loadAndSyncProductsStock,
@@ -68,14 +67,13 @@ import {
   formatRutWithDotsAndDash,
   formatChileanMobilePhone,
   parseOrderDate,
-  getRecentTestOrderDateStr,
-  resolveCatalogProductForOrderItem,
-  resolveCatalogSizeForOrderItem
+  resolveCatalogProductForOrderItem
 } from '../components/profile/profileTypes';
 
 // Componentes segmentados del Perfil de Usuario
 import { ProfileSidebar } from '../components/profile/ProfileSidebar';
 import { ProfileOrdersTab } from '../components/profile/ProfileOrdersTab';
+import { mapConfirmedProfileOrders } from '../components/profile/profileOrdersApi';
 import { ProfilePointsTab } from '../components/profile/ProfilePointsTab';
 import { ProfileReviewsTab } from '../components/profile/ProfileReviewsTab';
 import { ProfileWishlistTab } from '../components/profile/ProfileWishlistTab';
@@ -325,143 +323,90 @@ export const ProfileView: React.FC = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSuccessMessage, setReviewSuccessMessage] = useState<string | null>(null);
 
-  // Registro de productos ya reseñados por el usuario
-  const [reviewedProductIds, setReviewedProductIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('nolimits_user_reviewed_items');
-      return saved ? JSON.parse(saved) : ['prod_cyber_hoodie_01'];
-    } catch {
-      return ['prod_cyber_hoodie_01'];
-    }
-  });
-
-  // Sub-pestañas para el módulo "Mis Reseñas": Tab 1: 'Pendientes' y Tab 2: 'Realizadas'
+  // La base de datos identifica los artículos reseñados por orden.
+  // No leer localStorage: una sesión nueva nunca hereda reseñas de otra cuenta.
   const [reviewsSubTab, setReviewsSubTab] = useState<'pending' | 'completed'>('pending');
+  const [myPublishedReviews, setMyPublishedReviews] = useState<UserPublishedReview[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState('');
+  const [reviewsError, setReviewsError] = useState('');
+  const [profileReload, setProfileReload] = useState(0);
 
-  // Historial de reseñas realizadas por el usuario
-  const [myPublishedReviews, setMyPublishedReviews] = useState<UserPublishedReview[]>(() => {
-    try {
-      const saved = localStorage.getItem('nolimits_my_published_reviews');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // ignore
+  // Fuente única de información personal: API autenticada + MongoDB Atlas.
+  // Se limpia el estado al cambiar de usuario y no se utilizan órdenes de prueba.
+  useEffect(() => {
+    let active = true;
+    setOrders([]);
+    setMyPublishedReviews([]);
+    setReturnRequests([]);
+    setOrdersError('');
+    setReviewsError('');
+
+    // Al salir de la sesión nunca deben persistir datos del usuario anterior.
+    if (!currentUser?.id || currentUser.role === 'guest') {
+      setOrdersLoading(false);
+      setReviewsLoading(false);
+      return () => { active = false; };
     }
-    return [
-      {
-        id: 'rev_initial_01',
-        productId: 'prod_cyber_hoodie_01',
-        productTitle: 'Cyber-Tribal Overkill Zip Hoodie',
-        productImage: INITIAL_PRODUCTS[0]?.images[0] || 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=300',
-        productSize: 'L',
-        orderNumber: 'NL-8842',
-        rating: 5,
-        title: 'Excelente serigrafía y calce oversized impecable',
-        comment: 'La calidad del algodón frisado es pesada y abriga bien. El calce oversized cae perfecto con los parachute pants y los cierres metálicos son ultra resistentes. Muy recomendado el Drop.',
-        photos: [
-          'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=400&auto=format&fit=crop&q=80'
-        ],
-        date: '10 de Octubre 2026',
-        pointsEarned: 100
+
+    setOrdersLoading(true);
+    setReviewsLoading(true);
+
+    const loadPersonalData = async () => {
+      // Un fallo de devoluciones no debe ocultar compras y reseñas válidas.
+      const [ordersResult, reviewsResult, returnsResult] = await Promise.allSettled([
+        api.get('/orders/my-orders'),
+        api.get('/reviews/my-reviews'),
+        api.get('/returns/my-returns'),
+      ]);
+      if (!active) return;
+
+      // Las órdenes confirmadas conservan precio, producto y estado históricos.
+      let mongoOrders: PurchaseOrder[] = [];
+      if (ordersResult.status === 'fulfilled' && ordersResult.value.data?.success
+        && Array.isArray(ordersResult.value.data.data)) {
+        mongoOrders = mapConfirmedProfileOrders(ordersResult.value.data.data, catalogProducts);
+        setOrders(mongoOrders);
+      } else {
+        setOrdersError('No se pudo consultar el historial real de compras. Intenta recargarlo.');
       }
-    ];
-  });
+      setOrdersLoading(false);
 
-  useEffect(() => {
-    localStorage.setItem('nolimits_my_published_reviews', JSON.stringify(myPublishedReviews));
-  }, [myPublishedReviews]);
-
-  // Cargar órdenes reales, reseñas y devoluciones del usuario desde MongoDB
-  useEffect(() => {
-    if (!currentUser || currentUser.role === 'guest') return;
-    let isMounted = true;
-
-    const loadUserOrdersAndReviews = async () => {
-      try {
-        const [ordersRes, reviewsRes, returnsRes] = await Promise.all([
-          api.get('/orders/my-orders'),
-          api.get('/reviews/my-reviews'),
-          api.get('/returns/my-returns')
-        ]);
-
-        if (isMounted && ordersRes.data?.success && Array.isArray(ordersRes.data.data)) {
-          const mongoOrders: PurchaseOrder[] = ordersRes.data.data.map((o: any) => ({
-            id: String(o._id),
-            orderNumber: o.orderNumber || 'NL-0000',
-            date: o.createdAt
-              ? new Date(o.createdAt).toLocaleDateString('es-CL', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric'
-                })
-              : 'Reciente',
-            total: Number(o.total) || 0,
-            deliveryMethod: o.deliveryType === 'envio' ? 'shipping' : 'pickup',
-            branchName: o.branchName || 'Viña del Mar',
-            branchId: o.branchId || 'vina_del_mar',
-            courier: o.shippingDetails?.courier || 'Starken',
-            shippingAddress: o.shippingDetails?.address
-              ? `${o.shippingDetails.address.street} ${o.shippingDetails.address.number}, ${o.shippingDetails.address.comuna}`
-              : undefined,
-            trackingNumber: o.shippingDetails?.trackingNumber || undefined,
-            currentStatus: (o.status || o.fulfillmentStatus || 'Solicitud recibida') as any,
-            items: (o.items || []).map((it: any) => {
-              const matchedProd = catalogProducts.find(
-                (p) => p.id === String(it.productId) || p.sku === it.sku || p.title === it.name
-              );
-              return {
-                productId: String(it.productId || matchedProd?.id || ''),
-                title: it.name || matchedProd?.title || 'Prenda NoLimits',
-                size: it.size || 'Única',
-                color: matchedProd?.colors?.[0]?.name || 'Void Black',
-                quantity: Number(it.quantity) || 1,
-                price: Number(it.price) || 0,
-                image:
-                  matchedProd?.images?.[0] ||
-                  INITIAL_PRODUCTS[0]?.images[0] ||
-                  '',
-                isReviewed: Boolean(it.isReviewed)
-              };
-            })
-          }));
-
-          if (mongoOrders.length > 0) {
-            setOrders(mongoOrders);
-          }
-        }
-
-        if (isMounted && reviewsRes.data?.success && Array.isArray(reviewsRes.data.data)) {
-          const mongoReviews: UserPublishedReview[] = reviewsRes.data.data.map((r: any) => ({
+      // El mapa permite mostrar el número comercial real de la orden al reseñar.
+      const orderNumbers = new Map(mongoOrders.map(o => [o.id, o.orderNumber]));
+      if (reviewsResult.status === 'fulfilled' && reviewsResult.value.data?.success
+        && Array.isArray(reviewsResult.value.data.data)) {
+        const mongoReviews: UserPublishedReview[] = reviewsResult.value.data.data.map((r: any) => {
+          const orderId = String(r.orderId?._id || r.orderId || '');
+          return {
             id: String(r._id),
+            orderId,
             productId: String(r.productId?._id || r.productId || ''),
             productTitle: r.productId?.title || r.productId?.name || 'Prenda NoLimits',
-            productImage:
-              r.productId?.images?.[0] ||
-              INITIAL_PRODUCTS[0]?.images[0] ||
-              '',
+            productImage: r.productId?.images?.[0] || '',
             productSize: r.productSize || 'Única',
-            orderNumber: String(r.orderId || 'Verificada'),
+            orderNumber: orderNumbers.get(orderId) || '',
             rating: Number(r.rating) || 5,
             title: r.title || 'Valoración de Prenda',
             comment: r.comment || '',
             photos: Array.isArray(r.photos) ? r.photos : [],
             date: r.createdAt
               ? new Date(r.createdAt).toLocaleDateString('es-CL', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric'
-                })
-              : 'Reciente',
+                  day: 'numeric', month: 'long', year: 'numeric'
+                }) : 'Fecha no registrada',
             pointsEarned: Array.isArray(r.photos) && r.photos.length > 0 ? 100 : 20
-          }));
+          };
+        });
+        setMyPublishedReviews(mongoReviews);
+      } else {
+        setReviewsError('No se pudieron verificar las reseñas de tu cuenta. Intenta recargarlas.');
+      }
+      setReviewsLoading(false);
 
-          setMyPublishedReviews(mongoReviews);
-        }
-
-        if (isMounted && returnsRes.data?.success && Array.isArray(returnsRes.data.data)) {
-          const mongoReturns: ReturnRequest[] = returnsRes.data.data.flatMap((retDoc: any) => {
+      if (returnsResult.status === 'fulfilled' && returnsResult.value.data?.success
+        && Array.isArray(returnsResult.value.data.data)) {
+          const mongoReturns: ReturnRequest[] = returnsResult.value.data.data.flatMap((retDoc: any) => {
             const isShipping =
               retDoc.deliveryType === 'envio' || retDoc.returnMethod === 'courier_shipping';
 
@@ -485,7 +430,7 @@ export const ProfileView: React.FC = () => {
               productId: String(p.id || ''),
               productTitle: p.name || 'Prenda NoLimits',
               productSize: p.size || 'Única',
-              productImage: p.image || INITIAL_PRODUCTS[0]?.images[0] || '',
+              productImage: p.image || '',
               reason: retDoc.reason || retDoc.returnReason || 'Defecto de fabricación',
               returnMethod: isShipping ? 'courier_shipping' : 'branch_dropoff',
               returnCourier: isShipping ? retDoc.returnCourier || retDoc.shippingCourier || 'paket' : undefined,
@@ -511,18 +456,13 @@ export const ProfileView: React.FC = () => {
             }));
           });
 
-          setReturnRequests(mongoReturns);
-        }
-      } catch (err) {
-        console.error('Error cargando órdenes/reseñas/devoluciones desde MongoDB:', err);
+        setReturnRequests(mongoReturns);
       }
     };
 
-    loadUserOrdersAndReviews();
-    return () => {
-      isMounted = false;
-    };
-  }, [currentUser?.id]);
+    void loadPersonalData();
+    return () => { active = false; };
+  }, [currentUser?.id, currentUser?.role, profileReload]);
 
   // Catálogo de cupones canjeables administrado por el Super Admin en "Editar Cupones"
   const [adminCouponCatalog, setAdminCouponCatalog] = useState<CouponItem[]>(() =>
@@ -1319,364 +1259,10 @@ export const ProfileView: React.FC = () => {
     return 'pending';
   };
 
-  const syncOrderWithCurrentCatalog = (
-    order: PurchaseOrder,
-    catalogList: ProductStockDetail[] = catalogProducts
-  ): PurchaseOrder => {
-    const syncedItems = (order.items || []).map(it => {
-      const prod = resolveCatalogProductForOrderItem(it.productId, it.title, catalogList);
-      const unitPrice = prod.salePrice ?? prod.price;
-      const syncedSize = resolveCatalogSizeForOrderItem(it.size, prod);
-      const syncedColor = prod.colors?.[0]?.name || it.color || 'Void Black';
-      const syncedImage = prod.images?.[0] || it.image;
+  // El historial arranca vacío y solo se completa después de verificar MongoDB.
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
 
-      return {
-        ...it,
-        productId: prod.id,
-        title: prod.title,
-        size: syncedSize,
-        color: syncedColor,
-        quantity: it.quantity || 1,
-        price: unitPrice,
-        image: syncedImage
-      };
-    });
-
-    const recalculatedTotal = syncedItems.reduce(
-      (sum, item) => sum + item.price * (item.quantity || 1),
-      0
-    );
-
-    return {
-      ...order,
-      total: recalculatedTotal > 0 ? recalculatedTotal : order.total,
-      items: syncedItems
-    };
-  };
-
-  const buildInitialPurchaseOrders = (
-    catalogList: ProductStockDetail[] = catalogProducts
-  ): PurchaseOrder[] => {
-    const baseOrders: PurchaseOrder[] = [
-      {
-        id: 'ord_demo_10',
-        orderNumber: 'NL-9985',
-        date: getRecentTestOrderDateStr(),
-        total: 74980,
-        deliveryMethod: 'shipping',
-        courier: 'Starken',
-        shippingAddress: 'Av. Libertad 1250, Depto 402, Viña del Mar',
-        currentStatus: 'Entregado',
-        items: [
-          {
-            productId: 'prod_cyber_hoodie_01',
-            title: 'Cyber-Tribal Overkill Zip Hoodie',
-            size: 'L',
-            color: 'Void Black',
-            quantity: 1,
-            price: 38990,
-            image: INITIAL_PRODUCTS[0]?.images[0] || ''
-          },
-          {
-            productId: 'prod_goth_cargo_02',
-            title: 'Gothic Parachute Multipocket Cargo',
-            size: '42 (Chile) - 32 (USA/W)',
-            color: 'Shadow Grey',
-            quantity: 1,
-            price: 35990,
-            image: INITIAL_PRODUCTS[1]?.images[0] || ''
-          }
-        ]
-      },
-      {
-        id: 'ord_demo_07',
-        orderNumber: 'NL-9870',
-        date: '15 de Octubre 2026',
-        total: 93970,
-        deliveryMethod: 'shipping',
-        courier: 'Starken',
-        shippingAddress: 'Calle Quillota 450, Depto 302, Viña del Mar',
-        currentStatus: 'Entregado',
-        items: [
-          {
-            productId: 'prod_cyber_hoodie_01',
-            title: 'Cyber-Tribal Overkill Zip Hoodie',
-            size: 'M',
-            color: 'Void Black',
-            quantity: 1,
-            price: 38990,
-            image: INITIAL_PRODUCTS[0]?.images[0] || ''
-          },
-          {
-            productId: 'prod_goth_cargo_02',
-            title: 'Gothic Parachute Multipocket Cargo',
-            size: '44 (Chile) - 34 (USA/W)',
-            color: 'Shadow Grey',
-            quantity: 1,
-            price: 35990,
-            image: INITIAL_PRODUCTS[1]?.images[0] || ''
-          },
-          {
-            productId: 'prod_metal_choker_04',
-            title: 'Cybernetic Chrome Spiked Collar & Chain',
-            size: 'Talla Única',
-            color: 'Liquid Chrome',
-            quantity: 1,
-            price: 18990,
-            image: INITIAL_PRODUCTS[3]?.images[0] || ''
-          }
-        ]
-      },
-      {
-        id: 'ord_demo_05',
-        orderNumber: 'NL-9550',
-        date: '14 de Octubre 2026',
-        total: 68990,
-        deliveryMethod: 'shipping',
-        courier: 'Blue Express',
-        shippingAddress: 'Av. Álvarez 680, Depto 901, Viña del Mar',
-        currentStatus: 'Entregado',
-        items: [
-          {
-            productId: 'prod_chaqueta_biker_10',
-            title: 'Chaqueta Biker Cyber-Goth Cuero Vegano con Cierres Y2K',
-            size: 'L',
-            color: 'Pitch Black',
-            quantity: 1,
-            price: 68990,
-            image: INITIAL_PRODUCTS[9]?.images[0] || ''
-          }
-        ]
-      },
-      {
-        id: 'ord_demo_06',
-        orderNumber: 'NL-8320',
-        date: '13 de Octubre 2026',
-        total: 24990,
-        deliveryMethod: 'pickup',
-        branchName: 'Valparaíso',
-        branchId: 'valparaiso',
-        currentStatus: 'Retirado',
-        items: [
-          {
-            productId: 'prod_vintage_tee_03',
-            title: 'Windows XP Glitch 2000 Graphic Tee',
-            size: 'M',
-            color: 'Acid Washed Black',
-            quantity: 1,
-            price: 24990,
-            image: INITIAL_PRODUCTS[2]?.images[0] || ''
-          }
-        ]
-      },
-      {
-        id: 'ord_demo_01',
-        orderNumber: 'NL-8842',
-        date: '12 de Octubre 2026',
-        total: 57980,
-        deliveryMethod: 'pickup',
-        branchName: 'Viña del Mar',
-        branchId: 'vina_del_mar',
-        currentStatus: 'Listo para el retiro de sucursal',
-        items: [
-          {
-            productId: 'prod_cyber_hoodie_01',
-            title: 'Cyber-Tribal Overkill Zip Hoodie',
-            size: 'L',
-            color: 'Void Black',
-            quantity: 1,
-            price: 38990,
-            image: INITIAL_PRODUCTS[0]?.images[0] || ''
-          },
-          {
-            productId: 'prod_metal_choker_04',
-            title: 'Cybernetic Chrome Spiked Collar & Chain',
-            size: 'Talla Única',
-            color: 'Liquid Chrome',
-            quantity: 1,
-            price: 18990,
-            image: INITIAL_PRODUCTS[3]?.images[0] || ''
-          }
-        ]
-      },
-      {
-        id: 'ord_demo_02',
-        orderNumber: 'NL-7319',
-        date: '02 de Agosto 2026',
-        total: 35990,
-        deliveryMethod: 'shipping',
-        courier: 'Starken',
-        shippingAddress: 'Av. Libertad 1250, Depto 402, Viña del Mar',
-        currentStatus: 'Entregado',
-        items: [
-          {
-            productId: 'prod_goth_cargo_02',
-            title: 'Gothic Parachute Multipocket Cargo',
-            size: '42 (Chile) - 32 (USA/W)',
-            color: 'Shadow Grey',
-            quantity: 1,
-            price: 35990,
-            image: INITIAL_PRODUCTS[1]?.images[0] || ''
-          }
-        ]
-      },
-      {
-        id: 'ord_demo_03',
-        orderNumber: 'NL-6104',
-        date: '28 de Julio 2026',
-        total: 34990,
-        deliveryMethod: 'pickup',
-        branchName: 'Valparaíso',
-        branchId: 'valparaiso',
-        currentStatus: 'Retirado',
-        items: [
-          {
-            productId: 'prod_cartera_holographic_05',
-            title: 'Cartera Y2K Mini Baguette Plateada Mirror',
-            size: 'Talla Única',
-            color: 'Liquid Mirror Silver',
-            quantity: 1,
-            price: 34990,
-            image: INITIAL_PRODUCTS[4]?.images[0] || ''
-          }
-        ]
-      },
-      {
-        id: 'ord_demo_04',
-        orderNumber: 'NL-9201',
-        date: '14 de Octubre 2026',
-        total: 34990,
-        deliveryMethod: 'pickup',
-        branchName: 'Quilpué',
-        branchId: 'quilpue',
-        currentStatus: 'En Preparación',
-        items: [
-          {
-            productId: 'prod_chaqueta_windbreaker_sale_11',
-            title: 'Chaqueta Cortavientos Reflectante Cyber-Track Y2K',
-            size: 'M',
-            color: 'Silver Glitch & Neon Green',
-            quantity: 1,
-            price: 34990,
-            image: INITIAL_PRODUCTS[10]?.images[0] || ''
-          }
-        ]
-      },
-      {
-        id: 'ord_demo_08',
-        orderNumber: 'NL-9940',
-        date: '16 de Octubre 2026',
-        total: 44990,
-        deliveryMethod: 'shipping',
-        courier: 'Starken',
-        shippingAddress: 'Av. Libertad 1250, Depto 402, Viña del Mar',
-        currentStatus: 'Solicitud recibida',
-        items: [
-          {
-            productId: 'prod_women_cyber_heel_13',
-            title: 'Tacón Plataforma Cyber-Goth Mary Jane Charol',
-            size: '37 (Chile/EUR) - 7 (USA)',
-            color: 'Mirror Patent Black',
-            quantity: 1,
-            price: 44990,
-            image: INITIAL_PRODUCTS[12]?.images[0] || ''
-          }
-        ]
-      },
-      {
-        id: 'ord_demo_09',
-        orderNumber: 'NL-9350',
-        date: '15 de Octubre 2026',
-        total: 29990,
-        deliveryMethod: 'shipping',
-        courier: 'Blue Express',
-        shippingAddress: 'Calle Quillota 450, Depto 302, Viña del Mar',
-        trackingNumber: 'BX-8829104',
-        currentStatus: 'En transito',
-        items: [
-          {
-            productId: 'prod_cartera_cyber_sale_06',
-            title: 'Bolso Bandolera Cyber-Goth con Cadena Gruesa & Remaches',
-            size: 'Talla Única',
-            color: 'Onyx Black',
-            quantity: 1,
-            price: 29990,
-            image: INITIAL_PRODUCTS[5]?.images[0] || ''
-          }
-        ]
-      }
-    ];
-
-    return baseOrders.map(ord => syncOrderWithCurrentCatalog(ord, catalogList));
-  };
-
-  const [orders, setOrders] = useState<PurchaseOrder[]>(() => {
-    const activeCatalog = loadAndSyncProductsStock();
-    const syncedInitialOrders = buildInitialPurchaseOrders(activeCatalog);
-
-    try {
-      const local = localStorage.getItem('nolimits_user_orders');
-      if (local) {
-        const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const formatted = parsed.map((o: any) =>
-            syncOrderWithCurrentCatalog(
-              {
-                id: o.id || `ord_${Date.now()}`,
-                orderNumber: o.orderNumber || 'NL-9999',
-                date: o.date || 'Reciente',
-                total: o.total || 0,
-                deliveryMethod: o.deliveryMethod || 'pickup',
-                branchName: o.branchName || 'Viña del Mar',
-                branchId: o.branchId || 'vina_del_mar',
-                courier: o.courier || 'Starken',
-                shippingAddress: o.shippingAddress,
-                trackingNumber: o.trackingNumber,
-                currentStatus: (o.status as any) || o.currentStatus || 'Solicitud recibida',
-                items: (o.items || []).map((it: any) => ({
-                  productId: it.productId || 'prod_cyber_hoodie_01',
-                  title: it.title || 'Prenda NoLimits Drop',
-                  size: it.size || 'M',
-                  color: it.color || 'Void Black',
-                  quantity: it.quantity || 1,
-                  price: it.price || 0,
-                  image: it.image || INITIAL_PRODUCTS[0]?.images[0]
-                }))
-              },
-              activeCatalog
-            )
-          );
-          const userOnly = formatted.filter(
-            (f: any) => !syncedInitialOrders.some(init => init.orderNumber === f.orderNumber || init.id === f.id)
-          );
-          return [...userOnly, ...syncedInitialOrders];
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return syncedInitialOrders;
-  });
-
-  useEffect(() => {
-    if (!catalogProducts || catalogProducts.length === 0) return;
-
-    setOrders(prev => prev.map(ord => syncOrderWithCurrentCatalog(ord, catalogProducts)));
-
-    setMyPublishedReviews(prev =>
-      prev.map(rev => {
-        const prod = resolveCatalogProductForOrderItem(rev.productId, rev.productTitle, catalogProducts);
-        return {
-          ...rev,
-          productId: prod.id,
-          productTitle: prod.title,
-          productImage: prod.images?.[0] || rev.productImage
-        };
-      })
-    );
-  }, [catalogProducts]);
-
-  const pendingReviewItems = orders
+  const pendingReviewItems = (!ordersLoading && !reviewsLoading && !ordersError && !reviewsError ? orders : [])
     .filter(o => o.currentStatus === 'Entregado' || o.currentStatus === 'Retirado')
     .flatMap(o =>
       o.items.map(item => ({
@@ -1688,9 +1274,13 @@ export const ProfileView: React.FC = () => {
       }))
     )
     .filter((item: any) => {
-      if (item.isReviewed) return false;
-      const compositeKey = `${item.orderNumber}_${item.productId}`;
-      return !reviewedProductIds.includes(compositeKey);
+      // El endpoint de publicación solo acepta identificadores MongoDB reales.
+      if (!/^[a-f0-9]{24}$/i.test(item.productId) || item.isReviewed) return false;
+      // Una reseña corresponde al producto y a esta orden, no a cualquier compra.
+      const sourceOrder = orders.find(o => o.orderNumber === item.orderNumber);
+      return !myPublishedReviews.some(rev =>
+        rev.orderId === sourceOrder?.id && rev.productId === item.productId
+      );
     });
 
   const filteredReturnRequests = returnRequests.filter(ret => {
@@ -1867,11 +1457,6 @@ const handleConfirmRedeem = async () => {
 
       addLoyaltyPoints(earnedPoints);
 
-      const compositeKey = `${reviewModalProduct.orderNumber}_${reviewModalProduct.productId}`;
-      const updatedReviewed = [...reviewedProductIds, compositeKey];
-      setReviewedProductIds(updatedReviewed);
-      localStorage.setItem('nolimits_user_reviewed_items', JSON.stringify(updatedReviewed));
-
       // Marcar solo el producto de ESTA orden como reseñado en el estado local
       setOrders((prev) =>
         prev.map((ord) =>
@@ -1890,6 +1475,7 @@ const handleConfirmRedeem = async () => {
 
       const newMyReview: UserPublishedReview = {
         id: String(savedReview?._id || `my_rev_${Date.now()}`),
+        orderId: matchingOrder?.id || '',
         productId: reviewModalProduct.productId,
         productTitle: reviewModalProduct.title,
         productImage: reviewModalProduct.image,
@@ -1945,8 +1531,8 @@ const handleConfirmRedeem = async () => {
       return true;
     })
     .sort((a, b) => {
-      const timeA = parseOrderDate(a.date);
-      const timeB = parseOrderDate(b.date);
+      const timeA = a.purchasedAt ?? parseOrderDate(a.date);
+      const timeB = b.purchasedAt ?? parseOrderDate(b.date);
       if (timeA !== timeB) {
         return ordersSort === 'oldest' ? timeA - timeB : timeB - timeA;
       }
@@ -1974,8 +1560,8 @@ const handleConfirmRedeem = async () => {
             }}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
-            ordersCount={orders.length}
-            pendingReviewsCount={pendingReviewItems.length}
+            ordersCount={ordersLoading || ordersError ? null : orders.length}
+            pendingReviewsCount={ordersLoading || reviewsLoading || ordersError || reviewsError ? null : pendingReviewItems.length}
             wishlistCount={wishlistCount}
             returnRequestsCount={returnRequests.length}
             onLogout={() => {
@@ -1990,6 +1576,9 @@ const handleConfirmRedeem = async () => {
               <ProfileOrdersTab
                 orders={orders}
                 filteredOrders={filteredOrders}
+                ordersLoading={ordersLoading}
+                ordersError={ordersError}
+                onRetryOrders={() => setProfileReload(n => n + 1)}
                 ordersFilter={ordersFilter}
                 setOrdersFilter={setOrdersFilter}
                 ordersSort={ordersSort}
@@ -2020,7 +1609,13 @@ const handleConfirmRedeem = async () => {
                 reviewsSubTab={reviewsSubTab}
                 setReviewsSubTab={setReviewsSubTab}
                 pendingReviewItems={pendingReviewItems}
+                hasPurchases={orders.length > 0}
                 myPublishedReviews={myPublishedReviews}
+                pendingLoading={ordersLoading || reviewsLoading}
+                completedLoading={reviewsLoading}
+                pendingError={ordersError || reviewsError}
+                completedError={reviewsError}
+                onRetry={() => setProfileReload(n => n + 1)}
                 handleOpenReviewModal={handleOpenReviewModal}
               />
             )}

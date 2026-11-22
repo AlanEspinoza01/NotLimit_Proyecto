@@ -21,8 +21,8 @@ interface ProfileSidebarProps {
   };
   activeTab: ProfileTabId;
   setActiveTab: (tab: ProfileTabId) => void;
-  ordersCount: number;
-  pendingReviewsCount: number;
+  ordersCount: number | null;
+  pendingReviewsCount: number | null;
   wishlistCount: number;
   returnRequestsCount: number;
   onLogout: () => void;
@@ -118,7 +118,7 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
                 style={{ color: '#ffffff' }}
                 className="bg-blue-700 !text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0 shadow-xs"
               >
-                {ordersCount}
+                {ordersCount === null ? '…' : ordersCount}
               </span>
             )}
             {tab.id === 'points' && (
@@ -130,13 +130,14 @@ export const ProfileSidebar: React.FC<ProfileSidebarProps> = ({
                 {currentUser.loyaltyPoints}p
               </span>
             )}
-            {tab.id === 'reviews' && pendingReviewsCount > 0 && (
+            {/* El contador debe verse incluso cuando no hay reseñas pendientes. */}
+            {tab.id === 'reviews' && (
               <span
                 data-force-white
                 style={{ color: '#ffffff' }}
                 className="bg-amber-600 !text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0 shadow-xs"
               >
-                {pendingReviewsCount}
+                {pendingReviewsCount === null ? '…' : pendingReviewsCount}
               </span>
             )}
             {tab.id === 'wishlist' && wishlistCount > 0 && (

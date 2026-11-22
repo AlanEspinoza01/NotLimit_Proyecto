@@ -27,7 +27,13 @@ interface ProfileReviewsTabProps {
   reviewsSubTab: 'pending' | 'completed';
   setReviewsSubTab: (tab: 'pending' | 'completed') => void;
   pendingReviewItems: PendingReviewItem[];
+  hasPurchases: boolean;
   myPublishedReviews: UserPublishedReview[];
+  pendingLoading: boolean;
+  completedLoading: boolean;
+  pendingError: string;
+  completedError: string;
+  onRetry: () => void;
   handleOpenReviewModal: (
     item: { productId: string; title: string; image: string },
     orderNumber: string
@@ -38,7 +44,13 @@ export const ProfileReviewsTab: React.FC<ProfileReviewsTabProps> = ({
   reviewsSubTab,
   setReviewsSubTab,
   pendingReviewItems,
+  hasPurchases,
   myPublishedReviews,
+  pendingLoading,
+  completedLoading,
+  pendingError,
+  completedError,
+  onRetry,
   handleOpenReviewModal
 }) => {
   return (
@@ -82,7 +94,7 @@ export const ProfileReviewsTab: React.FC<ProfileReviewsTabProps> = ({
               pendingReviewItems.length > 0 ? 'bg-amber-600' : 'bg-gray-500'
             }`}
           >
-            {pendingReviewItems.length}
+            {pendingLoading || pendingError ? '…' : pendingReviewItems.length}
           </span>
         </button>
 
@@ -102,7 +114,7 @@ export const ProfileReviewsTab: React.FC<ProfileReviewsTabProps> = ({
             style={{ color: '#ffffff' }}
             className="text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold bg-green-700 !text-white"
           >
-            {myPublishedReviews.length}
+            {completedLoading || completedError ? '…' : myPublishedReviews.length}
           </span>
         </button>
       </div>
@@ -124,14 +136,25 @@ export const ProfileReviewsTab: React.FC<ProfileReviewsTabProps> = ({
             </div>
           </div>
 
-          {pendingReviewItems.length === 0 ? (
+          {pendingLoading ? (
+            <div className="p-8 text-center text-xs text-gray-600">Comprobando compras y reseñas en MongoDB…</div>
+          ) : pendingError ? (
+            <div role="alert" className="p-5 text-center text-xs text-red-800 border border-red-300 bg-red-50 space-y-2">
+              <p>{pendingError}</p>
+              <button type="button" onClick={onRetry} className="winxp-button px-3 py-1">Reintentar</button>
+            </div>
+          ) : pendingReviewItems.length === 0 ? (
             <div className="p-8 text-center text-xs text-gray-600 bg-gray-50 border border-dashed border-gray-300 space-y-2 winxp-bevel-in">
               <div className="w-10 h-10 mx-auto rounded-full bg-green-100 flex items-center justify-center text-green-700 border border-green-300">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
-              <div className="font-bold text-sm text-gray-800">¡Tus reseñas están al día!</div>
+              <div className="font-bold text-sm text-gray-800">
+                {hasPurchases ? 'No tienes compras pendientes por calificar' : 'Aún no tienes compras para reseñar'}
+              </div>
               <p className="text-gray-500 max-w-md mx-auto">
-                No tienes compras pendientes por calificar en este momento. Cuando recibas nuevos pedidos completados aparecerán aquí.
+                {hasPurchases
+                  ? 'Cuando alguna de tus compras esté entregada o retirada, podrás calificar sus prendas aquí.'
+                  : 'Cuando completes tu primera compra y recibas tus prendas, aparecerán aquí para que puedas dejar una reseña.'}
               </p>
             </div>
           ) : (
@@ -209,7 +232,14 @@ export const ProfileReviewsTab: React.FC<ProfileReviewsTabProps> = ({
             </div>
           </div>
 
-          {myPublishedReviews.length === 0 ? (
+          {completedLoading ? (
+            <div className="p-8 text-center text-xs text-gray-600">Cargando tus reseñas publicadas…</div>
+          ) : completedError ? (
+            <div role="alert" className="p-5 text-center text-xs text-red-800 border border-red-300 bg-red-50 space-y-2">
+              <p>{completedError}</p>
+              <button type="button" onClick={onRetry} className="winxp-button px-3 py-1">Reintentar</button>
+            </div>
+          ) : myPublishedReviews.length === 0 ? (
             <div className="p-8 text-center text-xs text-gray-600 bg-gray-50 border border-dashed border-gray-300 space-y-2 winxp-bevel-in">
               <MessageSquare className="w-8 h-8 mx-auto text-gray-400" />
               <div className="font-bold text-sm text-gray-800">No has publicado reseñas aún</div>
@@ -237,9 +267,9 @@ export const ProfileReviewsTab: React.FC<ProfileReviewsTabProps> = ({
                           <span className="font-bold text-xs text-blue-950">
                             {rev.productTitle}
                           </span>
-                          <span className="text-[10px] text-gray-500 font-mono">
+                          {rev.orderNumber && <span className="text-[10px] text-gray-500 font-mono">
                             (Orden #{rev.orderNumber})
-                          </span>
+                          </span>}
                         </div>
                         <div className="text-[10px] text-gray-500">
                           Publicado el {rev.date} · Compra Verificada
