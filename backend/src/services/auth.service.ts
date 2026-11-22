@@ -56,6 +56,8 @@ export const serializeUser = (userDoc: IUser) => {
  * para que la validación de sucursales activas en authenticateUser funcione desde el primer inicio.
  */
 export const ensureBaseUsersSeeded = async (): Promise<void> => {
+  // No crear cuentas de demostración ni contraseñas predeterminadas en producción.
+  if (process.env.NODE_ENV === 'production') return;
   if (mongoose.connection.readyState !== 1) return;
 
   const baseBranches = [
@@ -263,7 +265,8 @@ export const loginUserService = async (email: string, password?: string) => {
   );
 
   // Si no existe en users pero coincide con el adminEmail de una sucursal en branches, lo aprovisionamos
-  if (!user && mongoose.connection.readyState === 1) {
+  // Aprovisionamiento implícito solo en desarrollo; en producción requiere alta autorizada.
+  if (!user && process.env.NODE_ENV !== 'production' && mongoose.connection.readyState === 1) {
     const branch = await BranchModel.findOne({ adminEmail: normalizedEmail });
     if (branch) {
       const nameParts = (branch.managerName || 'Administrador Sucursal')

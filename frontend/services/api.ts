@@ -39,7 +39,7 @@ class ApiClient {
 
   /**
    * Realiza una petición HTTP hacia el Backend (intenta /api por proxy y, si falla por red en local,
-   * intenta http://localhost:5000/api directamente).
+   * intenta http://localhost:5000/api directamente solo en desarrollo).
    */
   private async fetchBackend<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const finishLoading = beginGlobalLoading();
@@ -63,11 +63,11 @@ class ApiClient {
       response = await executeFetch(API_BASE_URL);
       // Si el proxy de Vite devuelve 502/504 o HTML en vez de JSON, probamos directo al puerto 5000
       const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json') && API_BASE_URL === '/api') {
+      if (!contentType.includes('application/json') && import.meta.env.DEV && API_BASE_URL === '/api') {
         response = await executeFetch(DIRECT_BACKEND_URL);
       }
     } catch {
-      if (API_BASE_URL === '/api') {
+      if (import.meta.env.DEV && API_BASE_URL === '/api') {
         response = await executeFetch(DIRECT_BACKEND_URL);
       } else {
         throw new Error('No se pudo conectar con el servidor Backend.');
