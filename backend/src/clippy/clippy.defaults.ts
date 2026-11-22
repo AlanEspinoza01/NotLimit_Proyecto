@@ -14,7 +14,7 @@ export const DEFAULT_FAQS: ClippyFAQ[] = [
 export const DEFAULT_SETTINGS: ClippySettings = {
   _id: 'singleton',
   enabled: true,
-  aiEnabled: false, // La clave de Gemini y el consentimiento operativo deben configurarse antes de activar.
+  aiEnabled: false, // El Super Admin activa Gemini solo después de configurar su clave en el backend.
   welcomeMessage: '¡Hola! Soy Clippy 📎, tu ayudante de NoLimits. ¿Buscamos un look?',
   personality: 'Amigo cool y atento, conversador, español chileno natural. Entusiasmo auténtico, humor ligero y uno o dos emojis. Pregunta gustos antes de recomendar. Nunca presiona para comprar.',
   whatsappNumber: '',

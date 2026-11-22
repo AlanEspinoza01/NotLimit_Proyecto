@@ -1,8 +1,10 @@
 /**
  * Orientación conversacional para Clippy cuando Gemini está desactivado,
- * no existe consentimiento o el proveedor no responde.
+ * no está configurado o el proveedor no responde.
  * Solo procesa texto efímero: NO almacena ni consulta información privada.
  */
+import { getClippySocialReply, type ClippySocialKind } from './clippy.empathy';
+
 export interface ClippyTurn { role: string; text: string }
 export interface ClippyGuide {
   answer: string;
@@ -10,6 +12,8 @@ export interface ClippyGuide {
   searchContext: string;
   recommendProducts: boolean;
   styleConsultation: boolean;
+  // El servidor no enviará estados emocionales a Gemini ni ofrecerá productos.
+  socialKind?: ClippySocialKind;
 }
 
 // Quita tildes para interpretar variantes habituales del español chileno.
@@ -64,6 +68,14 @@ export const createClippyGuide = (question: string, history: ClippyTurn[]): Clip
   const searchContext = [...visitorHistory, question].join(' ').slice(-1800);
   const current = normalize(question);
   const combined = normalize(searchContext);
+  // Primero reconocemos el malestar; nunca lo convertimos en un turno de moda.
+  const social = getClippySocialReply(question, history);
+  if (social) {
+    return {
+      answer: social.answer, suggestions: [], searchContext: '',
+      recommendProducts: false, styleConsultation: false, socialKind: social.kind,
+    };
+  }
   // Las preguntas sobre compras/tallas deben interrumpir el asesor de moda sin quedar 'atrapadas'.
   const directInfoIntent = /\b(talla|tallas|medida|medidas|envio|envios|despacho|despachos|compra|comprar|carrito|checkout|devolucion|devoluciones|garantia|stock|disponibilidad|agotado)\b/.test(current);
   const lastAssistant = [...history].reverse().find((turn) => turn.role === 'assistant');

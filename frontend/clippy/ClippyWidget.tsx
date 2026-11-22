@@ -137,7 +137,7 @@ export const ClippyWidget: React.FC = () => {
     setInput('');
     setMessages((current) => [...current, { id: nextId.current++, from: 'visitor', text: questionText }]);
     try {
-      const history: Array<{ role: 'user' | 'assistant'; text: string }> = messages.slice(-4).map((m) => ({
+      const history: Array<{ role: 'user' | 'assistant'; text: string }> = messages.slice(-8).map((m) => ({
         role: m.from === 'visitor' ? 'user' : 'assistant', text: m.text.slice(0, 400),
       }));
       const result = await sendClippyQuestion({
@@ -145,8 +145,10 @@ export const ClippyWidget: React.FC = () => {
         // Gemini se activa automáticamente solo si lo habilitó el Super Admin.
         // Las preguntas frecuentes mantienen su respuesta guiada.
         allowGemini: Boolean(config?.aiEnabled) && !payload.questionId,
-        // Conservar únicamente el contexto reciente cuando Gemini está activo.
-        history: config?.aiEnabled && !payload.questionId ? history : [],
+        // Conserva hasta ocho turnos efímeros incluso sin Gemini:
+        // ayuda a entender una continuación breve como «no sé» o «sigo igual».
+        // El backend filtra las expresiones emocionales antes de llamar a Gemini.
+        history: !payload.questionId ? history : [],
       });
       setMessages((current) => [...current, {
         id: nextId.current++, from: 'clippy', text: result.answer,

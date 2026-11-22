@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS, getClippySettings, getPublicSettings } from './clippy
 import { allowGlobalAiCall, enforceClippyLimits, isSensitiveQuestion } from './clippy.security';
 import { askGemini } from './clippy.gemini';
 import { createClippyGuide } from './clippy.conversation';
+import { isClippySocialResponse, isPersonalDistress } from './clippy.empathy';
 
 export const clippyPublicRouter = Router();
 export const clippyAdminRouter = Router();
@@ -87,8 +88,9 @@ clippyPublicRouter.post('/ask', async (req: Request, res: Response) => {
       return;
     }
     const question = safe(questionRaw, 500);
-    // Contexto efímero, nunca persistido. Solo se transmite a Gemini con consentimiento explícito.
-    const history = Array.isArray(req.body?.history) && req.body.history.length <= 4
+    // Contexto efímero y acotado; no se guarda en MongoDB.
+    // Tipado explícito: req.body proviene de Express y no aporta tipos inferibles.
+    const history: Array<{ role: string; text: string }> = Array.isArray(req.body?.history) && req.body.history.length <= 8
       ? req.body.history.filter((item: any) => item && ['user', 'assistant'].includes(item.role)
           && typeof item.text === 'string' && item.text.length <= 400 && !isSensitiveQuestion(item.text))
           .map((item: any) => ({ role: item.role as string, text: safe(item.text, 400) }))
@@ -107,8 +109,19 @@ clippyPublicRouter.post('/ask', async (req: Request, res: Response) => {
       return;
     }
 
-    // El modo guiado pregunta gustos y paleta en lugar de cortar la conversación.
+    // La empatía cotidiana tiene prioridad sobre el comercio y las llamadas a IA.
+    // No consultamos catálogo, no mostramos WhatsApp ni enviamos ese texto a Google.
     const guide = createClippyGuide(question, history);
+    if (guide.socialKind) {
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({
+        success: true,
+        data: { answer: guide.answer, products: [], suggestions: [], mode: 'guide', contactUrl: '' },
+      });
+      return;
+    }
+
+    // El modo guiado pregunta gustos y paleta en lugar de cortar la conversación.
     const products = guide.recommendProducts ? await findOutfits(guide.searchContext) : [];
     let fallback = guide.answer;
     if (guide.recommendProducts && products.length) {
@@ -123,7 +136,9 @@ clippyPublicRouter.post('/ask', async (req: Request, res: Response) => {
     if (req.body?.allowGemini === true && settings.aiEnabled && process.env.GEMINI_API_KEY
       && await allowGlobalAiCall(settings.maxGlobalAiPerDay)) {
       try {
-        const aiAnswer = await askGemini(question, products.map(({ title, section, category, price, sizes }) => ({ title, section, category, price, sizes })), settings, history);
+        // No se reenvían a Gemini expresiones emocionales de turnos anteriores.
+        const publicHistory = history.filter((turn: { role: string; text: string }) => !isPersonalDistress(turn.text) && !isClippySocialResponse(turn.text));
+        const aiAnswer = await askGemini(question, products.map(({ title, section, category, price, sizes }) => ({ title, section, category, price, sizes })), settings, publicHistory);
         if (aiAnswer) { answer = aiAnswer; suggestions = []; mode = 'gemini'; }
       } catch {
         // Fallo del proveedor: preservamos el funcionamiento local y no revelamos detalles internos.
