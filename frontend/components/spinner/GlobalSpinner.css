@@ -1,4 +1,3 @@
-
 /* Pantalla de carga global: clases NL aisladas para no alterar los estilos del sitio. */
 .nl-spinner-overlay {
   position: fixed;
@@ -7,7 +6,11 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  /* Fondo sin tinte: se ven los colores reales de la página, pero desenfocados. */
   background: transparent;
+  /* El desenfoque afecta únicamente al contenido que está detrás del spinner. */
+  -webkit-backdrop-filter: blur(8px); /* Soporte para Safari/WebKit. */
+  backdrop-filter: blur(8px); /* Chrome, Edge, Firefox y navegadores compatibles. */
   color: #fff;
   padding: 24px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;

@@ -10,6 +10,8 @@ import {
   matchCatalogProducts, matchUpperAlternatives, matchStyleProducts, buildCatalogReply, buildUpperAlternativeReply,
 } from './clippy.catalog';
 import { isClippySocialResponse, isClippySocialMessage } from './clippy.empathy';
+import { StoreSettingsModel } from '../models/StoreSettings.model';
+import { detectClippyStoreIntent, buildClippyStoreReply, type PublicInfoTexts } from './clippy.store-guide';
 
 export const clippyPublicRouter = Router();
 export const clippyAdminRouter = Router();
@@ -89,6 +91,39 @@ clippyPublicRouter.post('/ask', async (req: Request, res: Response) => {
         success: true,
         data: { answer: guide.answer, products: [], suggestions: [], mode: 'guide', contactUrl: '' },
       });
+      return;
+    }
+
+    // Preguntas institucionales: responder con información pública verificada.
+    // Se procesan ANTES de buscar productos o llamar a Gemini; no consumen cuota de IA.
+    const storeIntent = detectClippyStoreIntent(question, history);
+    if (storeIntent) {
+      let publicInfo: PublicInfoTexts | null = null;
+      // Solo consultar el documento público de la tienda para preguntas institucionales.
+      // Limitar campos mediante una lista permitida; nunca consultar usuarios, pagos, pedidos o claves.
+      try {
+        const stored = await StoreSettingsModel.findById('global_settings')
+          .select('infoTexts').lean();
+        const raw = stored?.infoTexts;
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          const allowed = ['quienesSomos', 'quienesSomosBanner', 'comoPagarTitle',
+            'metodosEnvioTitle', 'metodosEnvio', 'retiroSucursalTitle', 'retiroSucursal',
+            'cambiosDevolucionesTitle', 'politicasPrivacidadTitle', 'terminosCondicionesTitle'] as const;
+          publicInfo = {};
+          for (const key of allowed) {
+            if (typeof raw[key] === 'string') publicInfo[key] = raw[key];
+          }
+        }
+      } catch {
+        // Las indicaciones principales siguen disponibles si falla la consulta informativa.
+        console.warn('[CLIPPY] Información publicada no disponible; respuesta general.');
+      }
+      const infoAnswer = buildClippyStoreReply(storeIntent, publicInfo);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ success: true, data: {
+        answer: infoAnswer.answer, suggestions: infoAnswer.suggestions,
+        products: [], mode: 'guide', contactUrl: '',
+      } });
       return;
     }
 

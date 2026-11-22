@@ -145,9 +145,9 @@ export const ClippyWidget: React.FC = () => {
         // Gemini se activa automáticamente solo si lo habilitó el Super Admin.
         // Las preguntas frecuentes mantienen su respuesta guiada.
         allowGemini: Boolean(config?.aiEnabled) && !payload.questionId,
-        // Conserva hasta ocho turnos efímeros incluso sin Gemini:
-        // ayuda a entender una continuación breve como «no sé» o «sigo igual».
-        // El backend filtra las expresiones emocionales antes de llamar a Gemini.
+        // Conservar contexto reciente también en modo guiado: permite dar continuidad
+        // a preguntas sobre pagos, pedidos especiales o documentos del footer.
+        // El backend filtra el contexto y no persiste las conversaciones.
         history: !payload.questionId ? history : [],
       });
       setMessages((current) => [...current, {
@@ -218,6 +218,13 @@ export const ClippyWidget: React.FC = () => {
                 <div ref={chatBottomRef}/>
               </div>
               <div className="nl-clippy-faqs" aria-label="Preguntas frecuentes">
+                {/* Accesos rápidos a información verificada, independientes de las FAQ existentes. */}
+                <button type="button" disabled={busy} onClick={() => void ask(
+                  { question: '¿Cómo solicito un producto personalizado?' }, '¿Cómo solicito un producto personalizado?'
+                )}>Personalizados · ¿Cómo pedir?</button>
+                <button type="button" disabled={busy} onClick={() => void ask(
+                  { question: '¿Puedo pagar con tarjeta?' }, '¿Puedo pagar con tarjeta?'
+                )}>Pagos · Tarjetas y Webpay</button>
                 {config.faqs.slice(0, 10).map((faq) => <button type="button" key={faq.id} disabled={busy} onClick={() => askFaq(faq)} title={faq.answer}>{faq.category} · {faq.question}</button>)}
               </div>
               <form onSubmit={submit} className="nl-clippy-form">
@@ -232,3 +239,5 @@ export const ClippyWidget: React.FC = () => {
     </div>
   );
 };
+
+
