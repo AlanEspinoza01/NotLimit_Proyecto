@@ -530,6 +530,7 @@ export const updateUserProfileService = async (
   }
 
   const updateFields: Record<string, any> = {};
+  const unsetFields: Record<string, 1> = {};
 
   if (data.firstName !== undefined)
     updateFields.firstName = String(data.firstName).trim();
@@ -540,30 +541,64 @@ export const updateUserProfileService = async (
     updateFields.firstName = parts[0] || 'Usuario';
     updateFields.lastName = parts.slice(1).join(' ');
   }
-  if (data.rut !== undefined && String(data.rut).trim() !== '') {
-    updateFields.rut = String(data.rut).trim();
+
+  // Permitir dejar RUT vacío sin romper el índice único sparse de MongoDB
+  if (data.rut !== undefined) {
+    const cleanRut = String(data.rut).trim();
+    if (cleanRut === '') {
+      unsetFields.rut = 1;
+    } else {
+      updateFields.rut = cleanRut;
+    }
   }
-  if (data.phone !== undefined) updateFields.phone = String(data.phone).trim();
-  if (data.avatarUrl !== undefined)
+
+  if (data.phone !== undefined) {
+    updateFields.phone = String(data.phone).trim();
+  }
+
+  if (data.avatarUrl !== undefined) {
     updateFields.avatarUrl = String(data.avatarUrl);
-  // Puntos son contabilidad del servidor: jamás aceptar cambios desde el perfil.
-  if (data.loyaltyPoints !== undefined || data.lastPointsReason !== undefined || data.role !== undefined || data.isActive !== undefined || data.totalSpentClp !== undefined || data.totalOrdersCount !== undefined) {
-    throw new ApiError(403, 'No puedes modificar puntos, roles ni datos económicos desde el perfil');
   }
+
+  // Puntos son contabilidad del servidor: jamás aceptar cambios desde el perfil.
+  if (
+    data.loyaltyPoints !== undefined ||
+    data.lastPointsReason !== undefined ||
+    data.role !== undefined ||
+    data.isActive !== undefined ||
+    data.totalSpentClp !== undefined ||
+    data.totalOrdersCount !== undefined
+  ) {
+    throw new ApiError(
+      403,
+      'No puedes modificar puntos, roles ni datos económicos desde el perfil'
+    );
+  }
+
   if (Array.isArray(data.addresses)) updateFields.addresses = data.addresses;
+
   // Las etiquetas del cliente solo las puede editar un administrador desde su módulo.
-  if (data.tags !== undefined) throw new ApiError(403, 'Las etiquetas son administrativas');
+  if (data.tags !== undefined)
+    throw new ApiError(403, 'Las etiquetas son administrativas');
+
   if (Array.isArray(data.wishlistProductIds)) {
     updateFields.wishlistProductIds = data.wishlistProductIds
       .filter((id: any) => mongoose.Types.ObjectId.isValid(String(id)))
       .map((id: any) => new mongoose.Types.ObjectId(String(id)));
   }
 
-  const updated = await UserModel.findByIdAndUpdate(
-    userId,
-    { $set: updateFields },
-    { new: true, runValidators: true }
-  );
+  const updateQuery: Record<string, any> = {};
+  if (Object.keys(updateFields).length > 0) {
+    updateQuery.$set = updateFields;
+  }
+  if (Object.keys(unsetFields).length > 0) {
+    updateQuery.$unset = unsetFields;
+  }
+
+  const updated = await UserModel.findByIdAndUpdate(userId, updateQuery, {
+    new: true,
+    runValidators: true,
+  });
 
   if (!updated) {
     throw new ApiError(404, 'Usuario no encontrado para actualizar.');

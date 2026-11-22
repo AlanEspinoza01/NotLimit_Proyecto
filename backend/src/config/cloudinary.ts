@@ -22,6 +22,8 @@ const storage = new CloudinaryStorage({
       folderName = 'nolimits_reviews';
     } else if (req.originalUrl?.includes('returns')) {
       folderName = 'nolimits_returns';
+    } else if (req.originalUrl?.includes('profile')) {
+      folderName = 'nolimits_avatars';
     }
 
     return {

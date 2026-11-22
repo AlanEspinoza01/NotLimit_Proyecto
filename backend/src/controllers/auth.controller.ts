@@ -147,8 +147,6 @@ export const updateProfileController = async (
 ): Promise<void> => {
   try {
     const userId = String(req.params.id);
-
-    // Solo el propio usuario o un super_admin puede modificar este perfil
     if (
       req.user &&
       String(req.user._id) !== userId &&
@@ -157,7 +155,12 @@ export const updateProfileController = async (
       throw new ApiError(403, 'No tienes permisos para modificar otro perfil.');
     }
 
-    const updatedUser = await updateUserProfileService(userId, req.body || {});
+    const payload: any = { ...(req.body || {}) };
+    if (req.file && (req.file as any).path) {
+      payload.avatarUrl = (req.file as any).path;
+    }
+
+    const updatedUser = await updateUserProfileService(userId, payload);
     res.status(200).json({
       ok: true,
       success: true,

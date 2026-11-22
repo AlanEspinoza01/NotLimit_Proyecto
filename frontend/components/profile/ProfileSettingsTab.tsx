@@ -115,7 +115,7 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
             Sincronización Directa con Envíos y Boleta Electrónica
           </div>
           <div className="text-[11px] text-gray-600 leading-relaxed">
-            El <strong className="text-blue-900">RUT es obligatorio</strong> por normativa del Servicio de Impuestos Internos (SII) y por los operadores logísticos <strong>(Starken y Blue Express)</strong> para la emisión de la boleta y la entrega o retiro presencial de tus prendas.
+            Puedes guardar tu <strong className="text-blue-900">RUT y Teléfono de forma opcional</strong> para agilizar tus futuras compras. Si los dejas vacíos ahora, solo se te solicitarán cuando realices un pedido con despacho o retiro.
           </div>
         </div>
       </div>
@@ -254,12 +254,12 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
               />
             </div>
 
-            {/* RUT (Separación automática con "." y "-") */}
+            {/* RUT (Opcional - Separación automática con "." y "-") */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="font-bold text-blue-950 flex items-center gap-1">
                   <span>RUT:</span>
-                  <span className="text-red-600 font-bold">*</span>
+                  <span className="text-[10px] font-normal text-gray-500">(Opcional)</span>
                 </label>
                 <span className="text-[10px] text-gray-500 font-mono font-bold">
                   {profileRut.replace(/[^0-9kK]/g, '').length}/9 dígitos
@@ -268,19 +268,18 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
               <input
                 type="text"
                 inputMode="numeric"
-                required
                 maxLength={12}
                 value={profileRut}
                 onChange={handleRutChange}
-                placeholder="Ej. 19.876.543-2"
+                placeholder="Ej. 19.876.543-2 (Opcional)"
                 className="winxp-input w-full text-xs py-1.5 bg-white font-mono font-bold tracking-wider"
               />
               <div className="flex items-center justify-between mt-0.5">
                 <span className="text-[10px] text-gray-500">
-                  Separación automática con &quot;.&quot; y &quot;-&quot; (ej: 19.876.543-2).
+                  Separación automática con "." y "-" (ej: 19.876.543-2).
                 </span>
-                <span className="text-[9px] font-bold text-amber-900 bg-amber-100 px-1.5 py-0.2 border border-amber-400">
-                  Obligatorio para envíos
+                <span className="text-[9px] font-bold text-blue-900 bg-blue-100 px-1.5 py-0.2 border border-blue-300">
+                  Opcional
                 </span>
               </div>
             </div>
@@ -303,11 +302,11 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
               </span>
             </div>
 
-            {/* Teléfono Móvil - Separación automática (ejemplo: 9 5689 6328) */}
+            {/* Teléfono Móvil (Opcional - Separación automática) */}
             <div className="sm:col-span-2">
               <div className="flex items-center justify-between mb-1">
                 <label className="font-bold text-gray-800">
-                  Teléfono Móvil: <span className="text-red-600 font-bold">*</span>
+                  Teléfono Móvil: <span className="text-[10px] font-normal text-gray-500">(Opcional)</span>
                 </label>
                 <span className="text-[10px] text-gray-500 font-mono font-bold">
                   {profilePhone.replace(/\D/g, '').length}/9 dígitos
@@ -320,11 +319,10 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
                 <input
                   type="tel"
                   inputMode="numeric"
-                  required
                   maxLength={11}
                   value={profilePhone}
                   onChange={handlePhoneChange}
-                  placeholder="Ej. 9 5689 6328"
+                  placeholder="Ej. 9 5689 6328 (Opcional)"
                   className="winxp-input flex-1 text-xs py-1.5 bg-white font-mono tracking-wider font-semibold"
                 />
               </div>
@@ -345,9 +343,9 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
                 const rawLast = currentUser.lastName || (currentUser.name || '').split(' ').slice(1).join(' ') || '';
                 setProfileFirstName(rawFirst.slice(0, 50));
                 setProfileLastName(rawLast.slice(0, 50));
-                setProfileRut(formatRutWithDotsAndDash(currentUser.rut || '198765432'));
+                setProfileRut(currentUser.rut ? formatRutWithDotsAndDash(currentUser.rut) : '');
                 setProfileEmail(currentUser.email || '');
-                setProfilePhone(formatChileanMobilePhone(currentUser.phone || '956896328'));
+                setProfilePhone(currentUser.phone ? formatChileanMobilePhone(currentUser.phone) : '');
                 setProfileAvatarUrl(currentUser.avatarUrl || '');
               }
             }}

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
+import { uploadMiddleware } from '../config/cloudinary';
 import {
   loginController,
   registerController,
@@ -46,7 +47,13 @@ authRouter.get('/me', authenticateUser, getMeController);
 // POST /api/auth/logout -> Cerrar sesión y limpiar cookie HttpOnly
 authRouter.post('/logout', logoutController);
 
-// PUT /api/auth/profile/:id -> Actualizar datos del perfil del usuario en MongoDB
-authRouter.put('/profile/:id', authenticateUser, validateRequestOrigin, updateProfileController);
+// PUT /api/auth/profile/:id -> Actualizar datos del perfil y foto (Cloudinary) en MongoDB
+authRouter.put(
+  '/profile/:id',
+  authenticateUser,
+  validateRequestOrigin,
+  uploadMiddleware.single('avatar'),
+  updateProfileController
+);
 
 export default authRouter;

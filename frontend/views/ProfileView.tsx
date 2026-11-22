@@ -149,6 +149,7 @@ export const ProfileView: React.FC = () => {
   const [profileAvatarUrl, setProfileAvatarUrl] = useState(() => {
     return currentUser?.avatarUrl || '';
   });
+  const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
 
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
   const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
@@ -208,6 +209,7 @@ export const ProfileView: React.FC = () => {
       setTimeout(() => setProfileErrorMsg(null), 3000);
       return;
     }
+    setProfileAvatarFile(file);
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result) {
@@ -218,7 +220,7 @@ export const ProfileView: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileErrorMsg(null);
 
@@ -247,31 +249,57 @@ export const ProfileView: React.FC = () => {
       setProfileErrorMsg('El Apellido no puede exceder los 50 caracteres máximo.');
       return;
     }
-    if (!trimmedRut || rawRutDigits.length < 7) {
-      setProfileErrorMsg('El RUT es obligatorio para envíos a domicilio y retiros (formato: 12.345.678-K).');
+    // RUT opcional: solo validar formato si el usuario escribió algo
+    if (trimmedRut && rawRutDigits.length < 7) {
+      setProfileErrorMsg('Si ingresas un RUT, debe tener al menos 7 dígitos (formato: 12.345.678-K).');
       return;
     }
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
       setProfileErrorMsg('Por favor ingresa un correo electrónico válido.');
       return;
     }
-    if (!trimmedPhone || rawPhoneDigits.length < 8) {
-      setProfileErrorMsg('El Teléfono es obligatorio (ejemplo: 9 5689 6328).');
+    // Teléfono opcional: solo validar formato si el usuario escribió algo
+    if (trimmedPhone && rawPhoneDigits.length < 8) {
+      setProfileErrorMsg('Si ingresas un teléfono, debe tener al menos 8 dígitos (ejemplo: 9 5689 6328).');
       return;
     }
 
-    updateProfile({
-      firstName: trimmedFirstName,
-      lastName: trimmedLastName,
-      name: `${trimmedFirstName} ${trimmedLastName}`,
-      rut: trimmedRut,
-      email: trimmedEmail,
-      phone: trimmedPhone,
-      avatarUrl: profileAvatarUrl
-    });
+    try {
+      if (profileAvatarFile) {
+        const formData = new FormData();
+        formData.append('firstName', trimmedFirstName);
+        formData.append('lastName', trimmedLastName);
+        formData.append('name', `${trimmedFirstName} ${trimmedLastName}`);
+        formData.append('rut', trimmedRut);
+        formData.append('email', trimmedEmail);
+        formData.append('phone', trimmedPhone);
+        formData.append('avatar', profileAvatarFile);
 
-    setProfileSuccessMsg('✓ ¡Perfil actualizado con éxito! Datos sincronizados con el Checkout y despacho.');
-    setTimeout(() => setProfileSuccessMsg(null), 4000);
+        await updateProfile(formData);
+        setProfileAvatarFile(null);
+      } else {
+        await updateProfile({
+          firstName: trimmedFirstName,
+          lastName: trimmedLastName,
+          name: `${trimmedFirstName} ${trimmedLastName}`,
+          rut: trimmedRut,
+          email: trimmedEmail,
+          phone: trimmedPhone,
+          avatarUrl: profileAvatarUrl
+        });
+      }
+
+      setProfileSuccessMsg('✓ ¡Perfil actualizado con éxito en MongoDB y Cloudinary!');
+      setTimeout(() => setProfileSuccessMsg(null), 4000);
+    } catch (error: any) {
+      console.error('Error guardando perfil:', error);
+      setProfileErrorMsg(
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          'No se pudieron guardar los cambios del perfil.'
+      );
+    }
   };
 
   // Tab activo
@@ -2075,7 +2103,10 @@ const handleConfirmRedeem = async () => {
                 profilePhone={profilePhone}
                 setProfilePhone={setProfilePhone}
                 profileAvatarUrl={profileAvatarUrl}
-                setProfileAvatarUrl={setProfileAvatarUrl}
+                setProfileAvatarUrl={(url) => {
+                  setProfileAvatarUrl(url);
+                  setProfileAvatarFile(null);
+                }}
                 profileSuccessMsg={profileSuccessMsg}
                 profileErrorMsg={profileErrorMsg}
                 handleFirstNameChange={handleFirstNameChange}

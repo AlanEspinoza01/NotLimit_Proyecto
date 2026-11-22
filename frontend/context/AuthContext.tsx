@@ -14,7 +14,7 @@ export interface AuthContextType {
   register:(payload:RegisterPayload)=>Promise<User>;
   loginWithGoogle:(payload?:{email?:string;name?:string;googleId?:string;avatarUrl?:string})=>Promise<User>;
   logout:()=>Promise<void>; switchRole:(role:RoleType)=>void;
-  updateProfile:(updates:Partial<User>)=>Promise<void>;
+  updateProfile:(updates:Partial<User> | FormData)=>Promise<void>;
   addLoyaltyPoints:(points:number,reason?:string)=>Promise<void>;
   deductLoyaltyPoints:(points:number,reason?:string)=>boolean;
   refreshUser:()=>Promise<void>;
@@ -57,10 +57,20 @@ export const AuthProvider:React.FC<{children:React.ReactNode}>=({children})=>{
   };
   // Nunca fabricar administradores cambiando el rol localmente.
   const switchRole=(_role:RoleType):void=>{console.warn('El rol se asigna únicamente en MongoDB.');};
-  const updateProfile=async(updates:Partial<User>):Promise<void>=>{
+  const updateProfile=async(updates:Partial<User> | FormData):Promise<void>=>{
     const id=currentUser?.id;
     if(!id||id===GUEST_USER.id)throw new Error('Inicia sesión para editar tu perfil');
     const forbidden=['loyaltyPoints','lastPointsReason','role','tags','isActive','totalSpentClp','totalOrdersCount'];
+
+    if(updates instanceof FormData){
+      if(forbidden.some(key=>updates.has(key)))throw new Error('Este campo solo puede cambiarlo el servidor');
+      const res=await api.put(`/auth/profile/${id}`,updates,{
+        headers:{'Content-Type':'multipart/form-data'}
+      });
+      if(res.data?.user)setCurrentUser(res.data.user);
+      return;
+    }
+
     if(forbidden.some(key=>Object.prototype.hasOwnProperty.call(updates,key)))throw new Error('Este campo solo puede cambiarlo el servidor');
     const res=await api.put(`/auth/profile/${id}`,updates);
     if(res.data?.user)setCurrentUser(res.data.user);
@@ -80,3 +90,4 @@ export const useAuth=():AuthContextType=>{
   if(!context)throw new Error('useAuth debe utilizarse dentro de un AuthProvider');
   return context;
 };
+ 
