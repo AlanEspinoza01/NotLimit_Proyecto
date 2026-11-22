@@ -1,11 +1,27 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Check, Lock, Send, UserCheck, Mail, User as UserIcon, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  AlertTriangle,
+  Check,
+  Lock,
+  Send,
+  UserCheck,
+  Mail,
+  User as UserIcon,
+  ChevronDown,
+  ChevronUp,
+  X,
+  AlertCircle
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../api/axios';
 
 interface SoldOutDetailBannerProps {
   productTitle: string;
   sku: string;
+  productId?: string;
+  productImage?: string;
+  sizeRequested?: string;
 }
 
 /**
@@ -16,42 +32,56 @@ interface SoldOutDetailBannerProps {
 export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
   productTitle,
   sku,
+  productId,
+  productImage,
+  sizeRequested,
 }) => {
   const { currentUser, isAuthenticated } = useAuth();
-  // El estado de sesión puede ser nulo durante carga o cierre de sesión.
-  // No asumimos que isAuthenticated implica que currentUser ya exista.
-  const authenticatedUser = isAuthenticated && currentUser && currentUser.role !== 'guest'
-    ? currentUser
-    : null;
+  const authenticatedUser =
+    isAuthenticated && currentUser && currentUser.role !== 'guest'
+      ? currentUser
+      : null;
   const navigate = useNavigate();
+  const { id: routeProductId } = useParams<{ id: string }>();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [requestText, setRequestText] = useState('');
 
-  const handleSubmitRequest = (e: React.FormEvent) => {
+  const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authenticatedUser || !requestText.trim()) return;
+    if (!authenticatedUser || !requestText.trim() || submitting) return;
+
+    setSubmitError(null);
+    setSubmitting(true);
 
     try {
-      const existingRaw = localStorage.getItem('nl_soldout_requests');
-      const existing = existingRaw ? JSON.parse(existingRaw) : [];
-      existing.unshift({
-        id: `req_so_${Date.now()}`,
-        sku,
-        productTitle,
-        userId: authenticatedUser.id,
-        userName: authenticatedUser.name,
-        userEmail: authenticatedUser.email,
-        requestMessage: requestText.trim(),
-        createdAt: new Date().toISOString(),
+      await api.post('/stock-alerts', {
+        customerName: authenticatedUser.name,
+        customerEmail: authenticatedUser.email,
+        customerRut: authenticatedUser.rut || '',
+        customerPhone: authenticatedUser.phone || '',
+        productId: productId || routeProductId || '',
+        productName: productTitle,
+        productSku: sku,
+        productImage: productImage || '',
+        sizeRequested: sizeRequested || '',
+        notes: requestText.trim(),
       });
-      localStorage.setItem('nl_soldout_requests', JSON.stringify(existing));
-    } catch {
-      // ignore storage errors
-    }
 
-    setSubmitted(true);
+      setSubmitted(true);
+    } catch (error: any) {
+      console.error('Error enviando solicitud de producto agotado:', error);
+      setSubmitError(
+        error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          'No se pudo registrar tu solicitud. Intenta nuevamente.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -146,6 +176,7 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
                   type="button"
                   onClick={() => {
                     setRequestText('');
+                    setSubmitError(null);
                     setSubmitted(false);
                   }}
                   className="winxp-button text-[11px] py-0.5 px-2 font-semibold text-gray-700 cursor-pointer mt-1"
@@ -155,6 +186,13 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
               </div>
             ) : (
               <form onSubmit={handleSubmitRequest} className="space-y-2">
+                {submitError && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-red-900 bg-red-50 border border-red-400 px-2 py-1.5 rounded-xs">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-700 shrink-0" />
+                    <span className="font-semibold">{submitError}</span>
+                  </div>
+                )}
+
                 {/* Nombre y Correo rellenados automáticamente */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
@@ -191,6 +229,7 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
                   <textarea
                     rows={2}
                     value={requestText}
+                    disabled={submitting}
                     onChange={(e) => setRequestText(e.target.value)}
                     placeholder="Indica la talla, cantidad o detalles que necesitas para la reposición de este producto..."
                     className="winxp-input w-full py-1.5 px-2 text-xs resize-none"
@@ -201,6 +240,7 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
+                    disabled={submitting}
                     onClick={() => setIsFormOpen(false)}
                     className="winxp-button text-xs py-1.5 px-3 font-semibold text-gray-700 cursor-pointer"
                   >
@@ -208,10 +248,11 @@ export const SoldOutDetailBanner: React.FC<SoldOutDetailBannerProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="winxp-button winxp-button-primary text-xs py-1.5 px-4 font-bold text-blue-900 flex items-center gap-1.5 cursor-pointer"
+                    disabled={submitting}
+                    className="winxp-button winxp-button-primary text-xs py-1.5 px-4 font-bold text-blue-900 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>Enviar Solicitud</span>
+                    <span>{submitting ? 'Enviando...' : 'Enviar Solicitud'}</span>
                   </button>
                 </div>
               </form>

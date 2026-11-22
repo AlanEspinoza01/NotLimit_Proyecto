@@ -194,6 +194,14 @@ export function getAlertEmail(al: SystemAlert): string {
 
 // Helper para obtener la ruta de detalle del producto (especialmente para Solicitud de Producto Agotado)
 export function getAlertProductLink(al: SystemAlert): string {
+  // 0. Priorizar el enlace real o el ID del producto guardado en MongoDB
+  if (al.productLink && al.productLink.trim()) {
+    return al.productLink.trim();
+  }
+  if (al.products && al.products[0]?.id) {
+    return `/product/${al.products[0].id}`;
+  }
+
   // 1. Buscar por SKU exacto en INITIAL_PRODUCTS
   if (al.productSku) {
     const skuNorm = al.productSku.trim().toLowerCase();

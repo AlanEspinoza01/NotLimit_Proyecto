@@ -88,6 +88,7 @@ export interface SystemAlert {
   orderNumber?: string;
   amount?: number;
   productName?: string;
+  productLink?: string;
   productSku?: string;
   productImage?: string;
   sizeRequested?: string;

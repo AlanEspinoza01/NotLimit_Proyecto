@@ -5,6 +5,7 @@ import authRouter from './auth.routes';
 import sessionPolicyRoutes from './sessionPolicyRoutes';
 import reviewRouter from './review.routes';
 import adminRouter from './admin.routes';
+import stockAlertRouter from './stockAlert.routes';
 import authenticateUser from '../middleware/authenticateUser';
 import webpayRouter from './webpay.routes';
 import returnRouter from './return.routes';
@@ -42,5 +43,7 @@ apiRouter.use('/reviews', reviewRouter);
 apiRouter.use('/returns', returnRouter);
 
 apiRouter.use('/custom-products', customProductRouter);
+
+apiRouter.use('/stock-alerts', stockAlertRouter);
 
 export default apiRouter;

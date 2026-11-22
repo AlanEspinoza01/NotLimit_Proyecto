@@ -729,63 +729,69 @@ export const NotificationAlertCard: React.FC<NotificationAlertCardProps> = ({
         {!isCobroPendiente &&
           al.category !== 'atencion_cliente' &&
           al.category !== 'devolucion' &&
-          (al.productName || al.productImage) &&
+          (al.productName || al.productImage || al.products?.[0]?.image) &&
           (al.category === 'producto_agotado' ? (
-            <Link
-              to={getAlertProductLink(al)}
-              className="p-2 bg-purple-50/50 hover:bg-purple-100/80 border border-purple-300 hover:border-purple-600 rounded-xs text-[11px] flex items-center justify-between gap-2.5 shadow-2xs transition-all cursor-pointer group"
-              title="Haz clic para ver la página de detalle de este producto agotado"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                {al.productImage ? (
-                  <img
-                    src={al.productImage}
-                    alt={al.productName || 'Prenda'}
-                    className="w-11 h-11 object-cover rounded-xs border border-purple-400 bg-white shrink-0 group-hover:scale-105 transition-transform"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        INITIAL_PRODUCTS[0]?.images[0] ||
-                        'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800';
-                    }}
-                  />
-                ) : (
-                  <div className="w-11 h-11 bg-purple-100 border border-purple-300 rounded-xs flex items-center justify-center shrink-0 text-purple-600">
-                    <Package className="w-5 h-5" />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <span className="text-[8px] text-purple-800 font-bold uppercase block leading-none">
-                    Prenda Agotada Solicitada (Clic para ver detalle):
-                  </span>
-                  <strong className="text-[#003c74] group-hover:underline block truncate text-xs mt-0.5">
-                    {al.productName}
-                  </strong>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-gray-600 mt-0.5">
-                    {al.sizeRequested && (
-                      <span className="bg-white border border-purple-300 px-1.5 py-0.2 rounded-2xs font-mono font-bold text-gray-800">
-                        {al.sizeRequested}
+            (() => {
+              const soldOutImage = al.productImage || al.products?.[0]?.image || '';
+              const soldOutSku = al.productSku || al.products?.[0]?.sku || '';
+              return (
+                <Link
+                  to={getAlertProductLink(al)}
+                  className="p-2 bg-purple-50/50 hover:bg-purple-100/80 border border-purple-300 hover:border-purple-600 rounded-xs text-[11px] flex items-center justify-between gap-2.5 shadow-2xs transition-all cursor-pointer group"
+                  title="Haz clic para ver la página de detalle de este producto agotado"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {soldOutImage ? (
+                      <img
+                        src={soldOutImage}
+                        alt={al.productName || 'Prenda'}
+                        className="w-11 h-11 object-cover rounded-xs border border-purple-400 bg-white shrink-0 group-hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src =
+                            INITIAL_PRODUCTS[0]?.images[0] ||
+                            'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-11 h-11 bg-purple-100 border border-purple-300 rounded-xs flex items-center justify-center shrink-0 text-purple-600">
+                        <Package className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <span className="text-[8px] text-purple-800 font-bold uppercase block leading-none">
+                        Prenda Agotada Solicitada (Clic para ver detalle):
                       </span>
-                    )}
-                    {al.productSku && (
-                      <span className="font-mono text-gray-600">SKU: {al.productSku}</span>
-                    )}
+                      <strong className="text-[#003c74] group-hover:underline block truncate text-xs mt-0.5">
+                        {al.productName}
+                      </strong>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-gray-600 mt-0.5">
+                        {al.sizeRequested && (
+                          <span className="bg-white border border-purple-300 px-1.5 py-0.2 rounded-2xs font-mono font-bold text-gray-800">
+                            {al.sizeRequested}
+                          </span>
+                        )}
+                        {soldOutSku && (
+                          <span className="font-mono text-gray-600">SKU: {soldOutSku}</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              {al.amount && (
-                <div className="text-right shrink-0">
-                  <span className="text-[8px] text-gray-500 uppercase block font-bold">
-                    Valor Ref.
-                  </span>
-                  <span className="font-mono font-black text-rose-900 text-xs block">
-                    ${al.amount.toLocaleString('es-CL')} CLP
-                  </span>
-                  <span className="text-[9px] font-bold text-purple-800 group-hover:underline block mt-0.5">
-                    Ver producto →
-                  </span>
-                </div>
-              )}
-            </Link>
+                  {al.amount && (
+                    <div className="text-right shrink-0">
+                      <span className="text-[8px] text-gray-500 uppercase block font-bold">
+                        Valor Ref.
+                      </span>
+                      <span className="font-mono font-black text-rose-900 text-xs block">
+                        ${al.amount.toLocaleString('es-CL')} CLP
+                      </span>
+                      <span className="text-[9px] font-bold text-purple-800 group-hover:underline block mt-0.5">
+                        Ver producto →
+                      </span>
+                    </div>
+                  )}
+                </Link>
+              );
+            })()
           ) : al.category === 'producto_personalizado' ? (
             (() => {
               const refPhotos = getAlertReferencePhotos(al);
